@@ -1,0 +1,68 @@
+stages:
+  - test
+  - build
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - backend/venv/
+
+before_script:
+  - cd backend
+  - python3 -m venv venv || true
+  - source venv/bin/activate
+  - pip install --upgrade pip
+  - pip install -r requirements.txt
+
+test:
+  stage: test
+  image: python:3.12
+  script:
+    - python3 manage.py test --settings=test_settings
+  artifacts:
+    reports:
+      junit: test-results.xml
+    when: always
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  allow_failure: false
+
+test:lint:
+  stage: test
+  image: python:3.12
+  script:
+    - pip install flake8
+    - flake8 apps/ --max-line-length=120 --exclude=migrations,venv
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+test:security:
+  stage: test
+  image: python:3.12
+  script:
+    - pip install bandit
+    - bandit -r apps/ -f json -o bandit-report.json || true
+  artifacts:
+    reports:
+      sast: bandit-report.json
+    when: always
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+build:
+  stage: build
+  image: python:3.12
+  script:
+    - echo "Build stage - application is ready for deployment"
+    - python3 manage.py collectstatic --noinput --dry-run 2>/dev/null || true
+  only:
+    - main
+    - develop
+  allow_failure: true

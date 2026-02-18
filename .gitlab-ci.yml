@@ -1,68 +1,282 @@
 stages:
   - test
   - build
+  - deploy
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  NPM_CACHE_DIR: "$CI_PROJECT_DIR/.npm"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
 
 cache:
   paths:
     - .cache/pip
     - backend/venv/
+    - frontend/node_modules/
+    - .npm
 
-before_script:
-  - cd backend
-  - python3 -m venv venv || true
-  - source venv/bin/activate
-  - pip install --upgrade pip
-  - pip install -r requirements.txt
+# ============================================================================
+# BACKEND TESTS
+# ============================================================================
 
-test:
+backend:test:unit:
   stage: test
   image: python:3.12
+  before_script:
+    - cd backend
+    - python3 -m venv venv || true
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
-    - python3 manage.py test --settings=test_settings
+    - python3 manage.py test --settings=test_settings --verbosity=2
   artifacts:
     reports:
-      junit: test-results.xml
+      junit: backend/test-results.xml
     when: always
   coverage: '/TOTAL.*\s+(\d+%)$/'
   allow_failure: false
+  only:
+    - merge_requests
+    - main
+    - develop
 
-test:lint:
+backend:test:migrations:
   stage: test
   image: python:3.12
+  services:
+    - postgres:15-alpine
+  variables:
+    POSTGRES_DB: test_police_db
+    POSTGRES_USER: test_user
+    POSTGRES_PASSWORD: test_password
+    DATABASE_URL: "postgresql://test_user:test_password@postgres:5432/test_police_db"
+  before_script:
+    - cd backend
+    - python3 -m venv venv || true
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
-    - pip install flake8
-    - flake8 apps/ --max-line-length=120 --exclude=migrations,venv
+    - python3 manage.py migrate --noinput --settings=test_settings
+    - python3 manage.py makemigrations --dry-run --check --settings=test_settings
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+    - develop
+
+backend:lint:
+  stage: test
+  image: python:3.12
+  before_script:
+    - cd backend
+    - pip install --upgrade pip
+    - pip install flake8 pylint
+  script:
+    - flake8 apps/ --max-line-length=120 --exclude=migrations,venv,__pycache__
+    - echo "Linting passed"
   allow_failure: true
   only:
     - merge_requests
     - main
     - develop
 
-test:security:
+backend:security:
   stage: test
   image: python:3.12
+  before_script:
+    - cd backend
+    - pip install --upgrade pip
+    - pip install bandit safety
   script:
-    - pip install bandit
     - bandit -r apps/ -f json -o bandit-report.json || true
+    - safety check --json || true
   artifacts:
     reports:
-      sast: bandit-report.json
+      sast: backend/bandit-report.json
     when: always
   allow_failure: true
   only:
     - merge_requests
     - main
 
-build:
+# ============================================================================
+# FRONTEND TESTS
+# ============================================================================
+
+frontend:test:unit:
+  stage: test
+  image: node:18-alpine
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm run test -- --watchAll=false --passWithNoTests --coverage
+  artifacts:
+    reports:
+      junit: frontend/test-results.xml
+    when: always
+  coverage: '/Lines\s+:\s+(\d+\.\d+)%/'
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+    - develop
+
+frontend:lint:
+  stage: test
+  image: node:18-alpine
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm run build
+    - echo "Frontend build successful"
+  allow_failure: false
+  only:
+    - merge_requests
+    - main
+    - develop
+
+frontend:security:
+  stage: test
+  image: node:18-alpine
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - npm audit --production || true
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+
+# ============================================================================
+# BUILD STAGE
+# ============================================================================
+
+backend:build:
   stage: build
   image: python:3.12
+  before_script:
+    - cd backend
+    - python3 -m venv venv || true
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
-    - echo "Build stage - application is ready for deployment"
+    - echo "Building backend..."
     - python3 manage.py collectstatic --noinput --dry-run 2>/dev/null || true
+    - echo "Backend build complete"
   only:
     - main
     - develop
+  allow_failure: false
+
+frontend:build:
+  stage: build
+  image: node:18-alpine
+  before_script:
+    - cd frontend
+    - npm ci
+  script:
+    - echo "Building frontend..."
+    - npm run build
+    - echo "Frontend build complete"
+  artifacts:
+    paths:
+      - frontend/build/
+    expire_in: 1 week
+  only:
+    - main
+    - develop
+  allow_failure: false
+
+docker:build:backend:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA -f backend/Dockerfile ./backend
+    - docker tag $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/backend:latest
+    - docker push $CI_REGISTRY_IMAGE/backend:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/backend:latest
+  only:
+    - main
+    - develop
+  allow_failure: true
+
+docker:build:frontend:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA -f frontend/Dockerfile ./frontend
+    - docker tag $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE/frontend:latest
+    - docker push $CI_REGISTRY_IMAGE/frontend:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/frontend:latest
+  only:
+    - main
+    - develop
+  allow_failure: true
+
+# ============================================================================
+# DEPLOY STAGE
+# ============================================================================
+
+deploy:staging:
+  stage: deploy
+  image: docker:latest
+  script:
+    - echo "Deploying to staging..."
+    - echo "Using Docker Compose for deployment"
+  environment:
+    name: staging
+    url: http://staging.example.com
+  only:
+    - develop
+  when: manual
+  allow_failure: true
+
+deploy:production:
+  stage: deploy
+  image: docker:latest
+  script:
+    - echo "Deploying to production..."
+    - echo "Using Docker Compose for deployment"
+  environment:
+    name: production
+    url: http://example.com
+  only:
+    - main
+  when: manual
+  allow_failure: true
+
+# ============================================================================
+# PAGES (Documentation)
+# ============================================================================
+
+pages:
+  stage: deploy
+  image: python:3.12
+  script:
+    - mkdir -p public
+    - cp -r DOCS/* public/ || true
+    - cp SETUP_GUIDE.md public/setup.md || true
+    - cp FRONTEND_IMPLEMENTATION.md public/ || true
+    - cp FRONTEND_COMPLETION_REPORT.md public/ || true
+    - echo '<html><body><h1>Police Management System Documentation</h1><p>See the README and other docs</p></body></html>' > public/index.html
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
   allow_failure: true

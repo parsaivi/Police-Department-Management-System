@@ -72,6 +72,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "username", "email", "phone", "national_id",
             "first_name", "last_name", "password", "password_confirm"
         ]
+        extra_kwargs = {
+            "phone": {"required": True},
+            "national_id": {"required": True},
+            "first_name": {"required": True},
+            "last_name": {"required": True},
+        }
 
     def validate(self, attrs):
         if attrs["password"] != attrs.pop("password_confirm"):
@@ -85,10 +91,10 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             username=validated_data["username"],
             email=validated_data["email"],
             password=validated_data["password"],
-            first_name=validated_data.get("first_name", ""),
-            last_name=validated_data.get("last_name", ""),
-            phone=validated_data.get("phone"),
-            national_id=validated_data.get("national_id"),
+            first_name=validated_data["first_name"],
+            last_name=validated_data["last_name"],
+            phone=validated_data["phone"],
+            national_id=validated_data["national_id"],
         )
         # Assign default "Base User" role
         user.add_role("Base User")

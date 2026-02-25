@@ -54,7 +54,7 @@ class Evidence(TimeStampedModel):
     
     # Common fields
     title = models.CharField(max_length=255)
-    description = models.TextField(blank=True)
+    description = models.TextField()
     collected_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

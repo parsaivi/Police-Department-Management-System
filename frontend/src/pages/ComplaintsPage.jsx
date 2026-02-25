@@ -103,6 +103,9 @@ const ComplaintsPage = () => {
               <option value="cadet_review">Cadet Review</option>
               <option value="officer_review">Officer Review</option>
               <option value="approved">Approved</option>
+              <option value="returned">Returned to Complainant</option>
+              <option value="returned_to_cadet">Returned to Cadet</option>
+              <option value="rejected">Rejected</option>
               <option value="invalidated">Invalidated</option>
             </select>
           </div>
@@ -143,7 +146,7 @@ const ComplaintsPage = () => {
                         #{complaint.id}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {complaint.subject || 'No subject'}
+                        {complaint.title || 'No subject'}
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -155,8 +158,8 @@ const ComplaintsPage = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {complaint.submitted_at
-                          ? new Date(complaint.submitted_at).toLocaleDateString()
+                        {complaint.created_at
+                          ? new Date(complaint.created_at).toLocaleDateString()
                           : 'Not submitted'}
                       </td>
                       <td className="px-6 py-4 text-sm">

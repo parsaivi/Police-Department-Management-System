@@ -80,8 +80,8 @@ python manage.py migrate
 # Create superuser
 python manage.py createsuperuser
 
-# Load default roles
-python manage.py shell < scripts/load_default_roles.py
+# Load default roles and permissions
+python manage.py setup_roles
 
 # Run development server
 python manage.py runserver
@@ -96,6 +96,7 @@ python manage.py runserver
 ```bash
 docker-compose up -d
 docker-compose exec web python manage.py migrate
+docker-compose exec web python manage.py setup_roles
 docker-compose exec web python manage.py createsuperuser
 ```
 

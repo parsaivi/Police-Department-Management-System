@@ -130,7 +130,7 @@ class ThreeStrikeInvalidationTestCase(TestCase):
         self.cadet.add_role('Cadet')
     
     def test_first_return_increments_count(self):
-        """Test that first return increments invalid complaint count."""
+        """Test that first return increments rejection_count but does not invalidate."""
         self.assertEqual(self.complainant.invalid_complaints_count, 0)
         
         complaint = Complaint.objects.create(
@@ -150,11 +150,15 @@ class ThreeStrikeInvalidationTestCase(TestCase):
         complaint.return_to_complainant("Missing info")
         complaint.save()
         
+        complaint = Complaint.objects.get(pk=complaint.pk)
+        self.assertEqual(complaint.rejection_count, 1)
+        self.assertEqual(complaint.status, ComplaintStatus.RETURNED_TO_COMPLAINANT)
+        
         self.complainant.refresh_from_db()
-        self.assertEqual(self.complainant.invalid_complaints_count, 1)
+        self.assertEqual(self.complainant.invalid_complaints_count, 0)
     
     def test_three_returns_block_user(self):
-        """Test that three returns block user from further complaints."""
+        """Test that three returns on the same complaint invalidate and block user."""
         self.complainant.invalid_complaints_count = 2
         self.complainant.save()
         
@@ -166,14 +170,37 @@ class ThreeStrikeInvalidationTestCase(TestCase):
         )
         complaint.complainants.add(self.complainant)
         
-        # Transition properly
+        # First return
         complaint.submit()
         complaint.save()
         complaint.assign_to_cadet(self.cadet)
         complaint.save()
-        
-        complaint.return_to_complainant("Missing info")
+        complaint.return_to_complainant("Error 1")
         complaint.save()
+        self.assertEqual(complaint.rejection_count, 1)
+        self.assertEqual(complaint.status, ComplaintStatus.RETURNED_TO_COMPLAINANT)
+        
+        # Second return
+        complaint.resubmit()
+        complaint.save()
+        complaint.assign_to_cadet(self.cadet)
+        complaint.save()
+        complaint.return_to_complainant("Error 2")
+        complaint.save()
+        self.assertEqual(complaint.rejection_count, 2)
+        self.assertEqual(complaint.status, ComplaintStatus.RETURNED_TO_COMPLAINANT)
+        
+        # Third return → invalidation triggers _invalidate()
+        complaint.resubmit()
+        complaint.save()
+        complaint.assign_to_cadet(self.cadet)
+        complaint.save()
+        complaint.return_to_complainant("Error 3")
+        complaint.save()
+        
+        complaint = Complaint.objects.get(pk=complaint.pk)
+        self.assertEqual(complaint.rejection_count, 3)
+        self.assertEqual(complaint.status, ComplaintStatus.INVALIDATED)
         
         self.complainant.refresh_from_db()
         self.assertEqual(self.complainant.invalid_complaints_count, 3)
@@ -229,11 +256,9 @@ class ThreeStrikeInvalidationTestCase(TestCase):
         complaint.return_to_complainant("Error 3")
         complaint.save()
         
-        # Should have 3 rejections, now invalidate
+        # Third return auto-invalidates (rejection_count >= 3)
+        complaint = Complaint.objects.get(pk=complaint.pk)
         self.assertEqual(complaint.rejection_count, 3)
-        complaint.invalidate()
-        complaint.save()
-        
         self.assertEqual(complaint.status, ComplaintStatus.INVALIDATED)
 
 

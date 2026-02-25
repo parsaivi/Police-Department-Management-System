@@ -10,6 +10,44 @@ const DetectiveBoardPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const canvasRef = useRef(null);
+  const draggingRef = useRef(null);
+
+  const handleNoteMouseDown = (e, noteId) => {
+    if (e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    const note = board.notes.find((n) => n.id === noteId);
+    if (!note) return;
+    draggingRef.current = {
+      noteId,
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startNoteX: note.x || 0,
+      startNoteY: note.y || 0,
+    };
+  };
+
+  const handleMouseMove = (e) => {
+    if (!draggingRef.current) return;
+    const { noteId, startMouseX, startMouseY, startNoteX, startNoteY } = draggingRef.current;
+    const dx = e.clientX - startMouseX;
+    const dy = e.clientY - startMouseY;
+    setBoard((prev) => ({
+      ...prev,
+      notes: prev.notes.map((n) =>
+        n.id === noteId ? { ...n, x: startNoteX + dx, y: startNoteY + dy } : n
+      ),
+    }));
+  };
+
+  const handleMouseUp = async () => {
+    if (!draggingRef.current) return;
+    draggingRef.current = null;
+    try {
+      await casesService.updateDetectiveBoard(caseId, board);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to save note position');
+    }
+  };
 
   useEffect(() => {
     if (caseId) {
@@ -250,7 +288,12 @@ const DetectiveBoardPage = () => {
           {/* Board Canvas */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="relative bg-gray-50 rounded-lg p-6 min-h-screen border-2 border-dashed border-gray-300">
+              <div
+                className="relative bg-gray-50 rounded-lg p-6 min-h-screen border-2 border-dashed border-gray-300"
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+              >
                 {/* Draw connections */}
                 <svg
                   className="absolute inset-0 w-full h-full pointer-events-none"
@@ -266,13 +309,6 @@ const DetectiveBoardPage = () => {
                     const x2 = (toNote.x || 0) + 60;
                     const y2 = (toNote.y || 0) + 40;
 
-                    const colorMap = {
-                      related: '#ef4444',
-                      suspect: '#f97316',
-                      evidence: '#3b82f6',
-                      location: '#10b981',
-                    };
-
                     return (
                       <line
                         key={conn.id}
@@ -280,7 +316,7 @@ const DetectiveBoardPage = () => {
                         y1={y1}
                         x2={x2}
                         y2={y2}
-                        stroke={colorMap[conn.type] || '#ef4444'}
+                        stroke="#ef4444"
                         strokeWidth="2"
                         strokeDasharray="4"
                       />
@@ -298,11 +334,12 @@ const DetectiveBoardPage = () => {
                     board.notes.map((note, idx) => (
                       <div
                         key={note.id}
-                        className="absolute bg-yellow-200 p-4 rounded-lg shadow-lg w-40 break-words"
+                        className="absolute bg-yellow-200 p-4 rounded-lg shadow-lg w-40 break-words cursor-grab active:cursor-grabbing select-none"
                         style={{
                           left: `${note.x || idx * 150}px`,
                           top: `${note.y || idx * 150}px`,
                         }}
+                        onMouseDown={(e) => handleNoteMouseDown(e, note.id)}
                       >
                         <div className="text-sm font-semibold text-gray-900">
                           {note.content.substring(0, 100)}

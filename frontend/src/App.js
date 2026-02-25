@@ -18,6 +18,9 @@ import SuspectPage from './pages/SuspectPage';
 import DetectiveBoardPage from './pages/DetectiveBoardPage';
 import MostWantedPage from './pages/MostWantedPage';
 import AdminPage from './pages/AdminPage';
+import CaseCreatePage from './pages/CaseCreatePage';
+import ComplaintCreatePage from './pages/ComplaintCreatePage';
+import EvidencePage from './pages/EvidencePage';
 
 function App() {
   return (
@@ -50,6 +53,14 @@ function App() {
               }
             />
             <Route
+              path="/cases/new"
+              element={
+                <PrivateRoute>
+                  <CaseCreatePage />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/cases/:caseId"
               element={
                 <PrivateRoute>
@@ -74,6 +85,14 @@ function App() {
               }
             />
             <Route
+              path="/complaints/new"
+              element={
+                <PrivateRoute>
+                  <ComplaintCreatePage />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/complaints/:complaintId"
               element={
                 <PrivateRoute>
@@ -94,6 +113,22 @@ function App() {
               element={
                 <PrivateRoute>
                   <SuspectPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/evidence"
+              element={
+                <PrivateRoute>
+                  <EvidencePage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/evidence/new"
+              element={
+                <PrivateRoute>
+                  <EvidencePage />
                 </PrivateRoute>
               }
             />

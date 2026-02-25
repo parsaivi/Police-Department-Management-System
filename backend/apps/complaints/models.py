@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.db import models
-from django_fsm import FSMField, transition
+from django_fsm import FSMField, RETURN_VALUE, transition
 
 from apps.common.models import TimeStampedModel, CrimeSeverity
 
@@ -106,31 +106,36 @@ class Complaint(TimeStampedModel):
     @transition(
         field=status,
         source=[ComplaintStatus.CADET_REVIEW, ComplaintStatus.RETURNED_TO_CADET],
-        target=ComplaintStatus.RETURNED_TO_COMPLAINANT
+        target=RETURN_VALUE(
+            ComplaintStatus.RETURNED_TO_COMPLAINANT,
+            ComplaintStatus.INVALIDATED,
+        ),
     )
     def return_to_complainant(self, message: str):
         """Cadet returns complaint to complainant for corrections."""
         self.last_rejection_message = message
         self.rejection_count += 1
+        if self.rejection_count >= 3:
+            self._invalidate()
+            return ComplaintStatus.INVALIDATED
+        return ComplaintStatus.RETURNED_TO_COMPLAINANT
+
+    @transition(
+        field=status,
+        source=[ComplaintStatus.RETURNED_TO_COMPLAINANT, ComplaintStatus.DRAFT],
+        target=ComplaintStatus.INVALIDATED,
+    )
+    def invalidate(self):
+        """Invalidate complaint after 3 strikes (standalone transition)."""
         self._invalidate()
 
     def _invalidate(self):
-        """Mark complaint as invalidated and block complainant."""
-        # Update complainant's strike count
+        """Update complainant strike counts and block if needed."""
         for complainant in self.complainants.all():
             complainant.invalid_complaints_count += 1
             if complainant.invalid_complaints_count >= 3:
                 complainant.is_blocked_from_complaints = True
             complainant.save()
-
-    @transition(
-        field=status,
-        source=ComplaintStatus.RETURNED_TO_COMPLAINANT,
-        target=ComplaintStatus.INVALIDATED
-    )
-    def invalidate(self):
-        """Invalidate complaint after 3 strikes."""
-        pass
 
     @transition(
         field=status,

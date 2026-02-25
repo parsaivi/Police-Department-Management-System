@@ -75,6 +75,10 @@ echo ""
 echo "Checking backend..."
 if docker-compose exec -T backend python manage.py check > /dev/null 2>&1; then
     echo "✓ Django backend is ready"
+    echo ""
+    echo "Setting up default roles..."
+    docker-compose exec -T backend python manage.py setup_roles
+    echo "✓ Default roles loaded"
 else
     echo "⏳ Django backend is starting..."
 fi
@@ -120,6 +124,7 @@ echo "View frontend logs:     docker-compose logs -f frontend"
 echo "Stop services:          docker-compose down"
 echo "Restart services:       docker-compose restart"
 echo "Run migrations:         docker-compose exec backend python manage.py migrate"
+echo "Setup roles:            docker-compose exec backend python manage.py setup_roles"
 echo "Create superuser:       docker-compose exec backend python manage.py createsuperuser"
 echo "Run tests (backend):    docker-compose exec backend python manage.py test"
 echo "Run tests (frontend):   docker-compose exec frontend npm test"

@@ -33,6 +33,7 @@ class VehicleEvidenceXORConstraintTestCase(TestCase):
         evidence = Evidence.objects.create(
             case=self.case,
             title="Vehicle",
+            description="Test description",
             evidence_type=EvidenceType.VEHICLE,
             collected_by=self.detective,
             metadata={
@@ -50,6 +51,7 @@ class VehicleEvidenceXORConstraintTestCase(TestCase):
         evidence = Evidence.objects.create(
             case=self.case,
             title="Vehicle",
+            description="Test description",
             evidence_type=EvidenceType.VEHICLE,
             collected_by=self.detective,
             metadata={
@@ -69,6 +71,7 @@ class VehicleEvidenceXORConstraintTestCase(TestCase):
         evidence = Evidence(
             case=self.case,
             title="Vehicle",
+            description="Test description",
             evidence_type=EvidenceType.VEHICLE,
             collected_by=self.detective,
             metadata={
@@ -89,6 +92,7 @@ class VehicleEvidenceXORConstraintTestCase(TestCase):
         evidence = Evidence(
             case=self.case,
             title="Vehicle",
+            description="Test description",
             evidence_type=EvidenceType.VEHICLE,
             collected_by=self.detective,
             metadata={
@@ -127,6 +131,7 @@ class EvidenceTypeSpecificMetadataTestCase(TestCase):
         evidence = Evidence.objects.create(
             case=self.case,
             title="Witness Statement",
+            description="Test description",
             evidence_type=EvidenceType.TESTIMONY,
             collected_by=self.officer,
             metadata={
@@ -143,6 +148,7 @@ class EvidenceTypeSpecificMetadataTestCase(TestCase):
         evidence = Evidence.objects.create(
             case=self.case,
             title="Blood Sample",
+            description="Test description",
             evidence_type=EvidenceType.BIOLOGICAL,
             collected_by=self.officer,
             metadata={
@@ -163,6 +169,7 @@ class EvidenceTypeSpecificMetadataTestCase(TestCase):
         evidence = Evidence.objects.create(
             case=self.case,
             title="Driver's License",
+            description="Test description",
             evidence_type=EvidenceType.ID_DOCUMENT,
             collected_by=self.officer,
             metadata={
@@ -221,6 +228,7 @@ class EvidenceVerificationTestCase(TestCase):
         self.evidence = Evidence.objects.create(
             case=self.case,
             title="Test Evidence",
+            description="Test description",
             evidence_type=EvidenceType.BIOLOGICAL,
             collected_by=self.detective,
             metadata={'sample_type': 'Hair'}
@@ -321,6 +329,7 @@ class EvidenceAccessControlTestCase(APITestCase):
         evidence = Evidence.objects.create(
             case=self.case,
             title="Test Evidence",
+            description="Test description",
             evidence_type=EvidenceType.OTHER,
             collected_by=self.officer,
             metadata={}

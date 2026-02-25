@@ -263,7 +263,7 @@ class CrimeSceneWitness(TimeStampedModel):
     )
     full_name = models.CharField(max_length=255)
     phone = models.CharField(max_length=20)
-    national_id = models.CharField(max_length=10, blank=True)
+    national_id = models.CharField(max_length=10)
     notes = models.TextField(blank=True)
     
     # Link to user account if exists

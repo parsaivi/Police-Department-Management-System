@@ -121,6 +121,11 @@ class SuspectViewSet(viewsets.ModelViewSet):
     def detective_score(self, request, pk=None):
         """Detective submits guilt probability score (1-10)."""
         suspect = self.get_object()
+        if suspect.status not in (SuspectStatus.ARRESTED, SuspectStatus.UNDER_INVESTIGATION):
+            return Response(
+                {"error": "Guilt scoring is only allowed for arrested or under-investigation suspects."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         serializer = GuildScoreSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -133,6 +138,11 @@ class SuspectViewSet(viewsets.ModelViewSet):
     def sergeant_score(self, request, pk=None):
         """Sergeant submits guilt probability score (1-10)."""
         suspect = self.get_object()
+        if suspect.status not in (SuspectStatus.ARRESTED, SuspectStatus.UNDER_INVESTIGATION):
+            return Response(
+                {"error": "Guilt scoring is only allowed for arrested or under-investigation suspects."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         serializer = GuildScoreSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         

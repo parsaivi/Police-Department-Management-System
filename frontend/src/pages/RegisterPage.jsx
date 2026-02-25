@@ -42,8 +42,8 @@ const RegisterPage = () => {
         password_confirm: formData.password_confirm,
         first_name: formData.first_name,
         last_name: formData.last_name,
-        phone: formData.phone || null,
-        national_id: formData.national_id || null,
+        phone: formData.phone,
+        national_id: formData.national_id,
       };
 
       await authService.register(registrationData);
@@ -165,6 +165,7 @@ const RegisterPage = () => {
               value={formData.phone}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              required
             />
           </div>
 
@@ -179,6 +180,7 @@ const RegisterPage = () => {
               value={formData.national_id}
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+              required
             />
           </div>
 

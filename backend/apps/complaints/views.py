@@ -5,6 +5,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.cases.models import Case, CaseOrigin
+
 from .models import Complaint, ComplaintHistory, ComplaintStatus
 from .serializers import (
     AddComplainantSerializer,
@@ -50,6 +52,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     def submit(self, request, pk=None):
         """Complainant submits their complaint."""
         complaint = self.get_object()
+        if complaint.created_by != request.user:
+            return Response({"error": "Only the creator can submit."}, status=status.HTTP_403_FORBIDDEN)
         from_status = complaint.status
         
         try:
@@ -63,6 +67,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def assign_cadet(self, request, pk=None):
         """Assign complaint to a cadet for review."""
+        if not (request.user.has_role("Police Officer") or request.user.is_staff):
+            return Response({"error": "Only officers or admins can assign cadets."}, status=status.HTTP_403_FORBIDDEN)
         complaint = self.get_object()
         serializer = ComplaintTransitionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -82,6 +88,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def return_to_complainant(self, request, pk=None):
         """Cadet returns complaint to complainant for corrections."""
+        if not request.user.has_role("Cadet"):
+            return Response({"error": "Only cadets can return complaints."}, status=status.HTTP_403_FORBIDDEN)
         complaint = self.get_object()
         serializer = ComplaintTransitionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -117,6 +125,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def escalate(self, request, pk=None):
         """Cadet approves and escalates to officer."""
+        if not request.user.has_role("Cadet"):
+            return Response({"error": "Only cadets can escalate complaints."}, status=status.HTTP_403_FORBIDDEN)
         complaint = self.get_object()
         serializer = ComplaintTransitionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -136,6 +146,8 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def return_to_cadet(self, request, pk=None):
         """Officer returns to cadet for review."""
+        if not request.user.has_role("Police Officer"):
+            return Response({"error": "Only officers can return complaints to cadets."}, status=status.HTTP_403_FORBIDDEN)
         complaint = self.get_object()
         serializer = ComplaintTransitionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -156,14 +168,24 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
         """Officer approves the complaint."""
+        if not request.user.has_role("Police Officer"):
+            return Response({"error": "Only officers can approve complaints."}, status=status.HTTP_403_FORBIDDEN)
         complaint = self.get_object()
         from_status = complaint.status
         
         try:
-            complaint.approve()
-            complaint.save()
-            self._log_transition(complaint, from_status, complaint.status, request.user)
-            # TODO: Trigger case creation
+            with transaction.atomic():
+                complaint.approve()
+                complaint.save()
+                self._log_transition(complaint, from_status, complaint.status, request.user)
+                Case.objects.create(
+                    title=complaint.title,
+                    summary=complaint.description,
+                    origin=CaseOrigin.COMPLAINT,
+                    origin_complaint=complaint,
+                    crime_severity=complaint.crime_severity,
+                    created_by=request.user,
+                )
             return Response(ComplaintSerializer(complaint).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

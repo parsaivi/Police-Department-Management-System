@@ -39,6 +39,12 @@ class TipViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def officer_review(self, request, pk=None):
         """Police officer reviews the tip."""
+        allowed_roles = ["Police Officer", "Patrol Officer", "Chief", "Captain", "Sergeant", "Administrator"]
+        if not any(request.user.has_role(role) for role in allowed_roles):
+            return Response(
+                {"error": "You do not have permission to perform officer review."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         tip = self.get_object()
         serializer = TipReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -58,6 +64,11 @@ class TipViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def detective_review(self, request, pk=None):
         """Detective reviews the tip and approves reward."""
+        if not any(request.user.has_role(role) for role in ["Detective", "Administrator"]):
+            return Response(
+                {"error": "You do not have permission to perform detective review."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         tip = self.get_object()
         serializer = TipReviewSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

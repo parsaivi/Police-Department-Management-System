@@ -16,7 +16,7 @@ echo "Running migrations..."
 python manage.py migrate --noinput
 
 echo "Loading default roles..."
-python manage.py shell < scripts/load_default_roles.py || echo "Roles already loaded or script not found"
+python manage.py setup_roles
 
 echo "Starting application..."
 exec "$@"

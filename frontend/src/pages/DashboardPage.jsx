@@ -19,7 +19,9 @@ const DashboardPage = () => {
       setStats(response.data);
 
       // Build available modules based on user roles
-      const userRoles = user?.groups || [];
+      // Backend returns roles as array of display names (e.g. "Police Officer")
+      // Normalize to lowercase for comparison
+      const userRoles = (user?.roles || user?.groups || []).map(r => r.toLowerCase());
       const availableModules = [];
 
       // Default modules for all
@@ -32,7 +34,7 @@ const DashboardPage = () => {
       });
 
       // Role-based modules
-      if (userRoles.includes('cadet') || userRoles.includes('police_officer')) {
+      if (userRoles.includes('cadet') || userRoles.includes('police officer')) {
         availableModules.push({
           id: 'complaints',
           title: 'Complaints Review',
@@ -72,7 +74,7 @@ const DashboardPage = () => {
         });
       }
 
-      if (userRoles.includes('sergeant') || userRoles.includes('officer')) {
+      if (userRoles.includes('sergeant') || userRoles.includes('police officer') || userRoles.includes('patrol officer')) {
         availableModules.push({
           id: 'evidence',
           title: 'Evidence Management',
@@ -117,7 +119,7 @@ const DashboardPage = () => {
       <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-8 shadow-lg">
         <h1 className="text-4xl font-bold">Welcome, {user?.first_name || 'Officer'}</h1>
         <p className="text-blue-200 mt-2">
-          Roles: {user?.groups?.join(', ') || 'Base User'}
+          Roles: {(user?.roles || user?.groups || []).join(', ') || 'Base User'}
         </p>
       </div>
 

@@ -80,6 +80,14 @@ class EvidenceSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "metadata": "Vehicle evidence must have either 'plate' OR 'serial_number'."
                 })
+            if not metadata.get("model"):
+                raise serializers.ValidationError({
+                    "metadata": "Vehicle evidence must have 'model' in metadata."
+                })
+            if not metadata.get("color"):
+                raise serializers.ValidationError({
+                    "metadata": "Vehicle evidence must have 'color' in metadata."
+                })
         
         # Validate ID document has at least owner name
         if evidence_type == EvidenceType.ID_DOCUMENT:

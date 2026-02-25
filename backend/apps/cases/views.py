@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from apps.common.models import CrimeSeverity
 from .models import Case, CaseHistory, CaseOrigin, CaseStatus, CrimeSceneWitness
 from .serializers import (
     CaseSerializer,
@@ -51,6 +52,9 @@ class CaseViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"])
     def from_crime_scene(self, request):
         """Create case from crime scene report (police officer)."""
+        if request.user.has_role("Cadet"):
+            return Response({"error": "Cadets cannot register crime scenes."}, status=status.HTTP_403_FORBIDDEN)
+
         serializer = CrimeSceneCaseSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -169,6 +173,17 @@ class CaseViewSet(viewsets.ModelViewSet):
             case.submit_to_captain()
             case.save()
             self._log_transition(case, from_status, case.status, request.user)
+            
+            # Auto-escalate critical cases to Chief
+            if case.crime_severity == CrimeSeverity.CRITICAL:
+                captain_status = case.status
+                case.escalate_to_chief()
+                case.save()
+                self._log_transition(
+                    case, captain_status, case.status, request.user,
+                    "Auto-escalated to Chief due to critical severity"
+                )
+            
             return Response(CaseSerializer(case, context={"request": request}).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

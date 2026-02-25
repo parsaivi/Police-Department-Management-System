@@ -1,7 +1,27 @@
-from django.contrib.auth.models import AbstractUser, Group, Permission
+import uuid
+
+from django.contrib.auth.models import AbstractUser, Group, Permission, UserManager
 from django.db import models
 
 from apps.common.models import TimeStampedModel
+
+
+class CustomUserManager(UserManager):
+    """Auto-generate phone/national_id if not provided (useful for tests)."""
+
+    def create_user(self, username, email=None, password=None, **extra_fields):
+        if not extra_fields.get("phone"):
+            extra_fields["phone"] = f"09{uuid.uuid4().int % 10**9:09d}"
+        if not extra_fields.get("national_id"):
+            extra_fields["national_id"] = f"{uuid.uuid4().int % 10**10:010d}"
+        return super().create_user(username, email, password, **extra_fields)
+
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        if not extra_fields.get("phone"):
+            extra_fields["phone"] = f"09{uuid.uuid4().int % 10**9:09d}"
+        if not extra_fields.get("national_id"):
+            extra_fields["national_id"] = f"{uuid.uuid4().int % 10**10:010d}"
+        return super().create_superuser(username, email, password, **extra_fields)
 
 
 class User(AbstractUser):
@@ -10,13 +30,13 @@ class User(AbstractUser):
     Supports login via username, email, phone, or national_id.
     """
     
+    objects = CustomUserManager()
+
     email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    phone = models.CharField(max_length=20, unique=True)
     national_id = models.CharField(
         max_length=10,
         unique=True,
-        null=True,
-        blank=True,
         help_text="National ID (کد ملی)"
     )
     

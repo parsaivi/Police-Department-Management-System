@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import casesService from '../services/casesService';
 
 const CaseCreatePage = () => {
   const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+  const userRoles = (user?.roles || []).map(r => r.toLowerCase());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
@@ -34,6 +37,23 @@ const CaseCreatePage = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
+
+  const ALLOWED_ROLES = ['chief', 'captain', 'sergeant', 'detective', 'police officer', 'patrol officer', 'administrator'];
+  const canCreateCase = user?.is_staff || userRoles.some(r => ALLOWED_ROLES.includes(r));
+
+  if (!canCreateCase) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-red-600">Access Denied</h1>
+          <p className="text-gray-600 mt-4">You do not have permission to create cases.</p>
+          <Link to="/cases" className="text-blue-600 hover:text-blue-700 mt-4 inline-block font-semibold">
+            &larr; Back to Cases
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -142,19 +162,21 @@ const CaseCreatePage = () => {
           {/* Crime Severity */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Crime Severity (1-10) <span className="text-red-500">*</span>
+              Crime Severity <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
+            <select
               name="crime_severity"
               value={formData.crime_severity}
               onChange={handleChange}
               required
-              min={1}
-              max={10}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-              placeholder="1 - 10"
-            />
+            >
+              <option value="">Select severity...</option>
+              <option value="3">Level 3 - Minor (petty theft, minor fraud)</option>
+              <option value="2">Level 2 - Major (car theft)</option>
+              <option value="1">Level 1 - Severe (murder)</option>
+              <option value="0">Critical (serial murder, terrorism)</option>
+            </select>
           </div>
 
           {/* Crime Scene Fields (only when origin is crime_scene) */}

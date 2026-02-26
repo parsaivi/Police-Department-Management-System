@@ -25,6 +25,15 @@ class CaseViewSet(viewsets.ModelViewSet):
     search_fields = ["case_number", "title", "summary", "crime_scene_location"]
     ordering_fields = ["created_at", "updated_at", "crime_severity"]
 
+    def create(self, request, *args, **kwargs):
+        """Standard case creation - restricted to admin/staff only."""
+        if not request.user.is_staff:
+            return Response(
+                {"error": "Direct case creation is restricted to administrators. Use 'from_crime_scene' endpoint or file a complaint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().create(request, *args, **kwargs)
+
     def get_queryset(self):
         user = self.request.user
         
@@ -52,8 +61,14 @@ class CaseViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["post"])
     def from_crime_scene(self, request):
         """Create case from crime scene report (police officer)."""
-        if request.user.has_role("Cadet"):
-            return Response({"error": "Cadets cannot register crime scenes."}, status=status.HTTP_403_FORBIDDEN)
+        ALLOWED_ROLES = ["Chief", "Captain", "Sergeant", "Detective", "Police Officer", "Patrol Officer"]
+        user_roles = request.user.get_roles()
+        
+        if not request.user.is_staff and not any(role in ALLOWED_ROLES for role in user_roles):
+            return Response(
+                {"error": "Only police officers (non-Cadet) can register crime scenes."},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
         serializer = CrimeSceneCaseSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

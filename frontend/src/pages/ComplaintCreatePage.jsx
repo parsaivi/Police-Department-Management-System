@@ -157,11 +157,10 @@ const ComplaintCreatePage = () => {
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             >
-              {[...Array(10)].map((_, i) => (
-                <option key={i + 1} value={i + 1}>
-                  {i + 1}
-                </option>
-              ))}
+              <option value="3">Level 3 - Minor (petty theft, minor fraud)</option>
+              <option value="2">Level 2 - Major (car theft)</option>
+              <option value="1">Level 1 - Severe (murder)</option>
+              <option value="0">Critical (serial murder, terrorism)</option>
             </select>
           </div>
 

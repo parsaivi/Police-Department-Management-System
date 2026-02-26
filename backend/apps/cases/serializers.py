@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from apps.accounts.serializers import UserSerializer
+from apps.common.models import CrimeSeverity
 from apps.complaints.serializers import ComplaintSerializer
 from .models import Case, CaseHistory, CaseOrigin, CrimeSceneWitness
 
@@ -98,7 +99,7 @@ class CrimeSceneCaseSerializer(serializers.Serializer):
     
     title = serializers.CharField(max_length=255)
     summary = serializers.CharField(required=False, allow_blank=True)
-    crime_severity = serializers.IntegerField()
+    crime_severity = serializers.ChoiceField(choices=CrimeSeverity.choices)
     crime_scene_time = serializers.DateTimeField()
     crime_scene_location = serializers.CharField(max_length=255)
     witnesses = CrimeSceneWitnessSerializer(many=True, required=False)

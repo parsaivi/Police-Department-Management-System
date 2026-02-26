@@ -40,8 +40,8 @@ echo ""
 echo "Starting services..."
 echo "  - PostgreSQL Database (port 5432)"
 echo "  - Redis Cache (port 6379)"
-echo "  - Django Backend API (port 8000)"
-echo "  - React Frontend (port 3000)"
+echo "  - Django Backend API (port 8001)"
+echo "  - React Frontend (port 3001)"
 echo ""
 
 # Stop any existing containers
@@ -50,7 +50,7 @@ docker-compose down --remove-orphans 2>/dev/null || true
 
 # Build and start services
 echo "Building and starting services (this may take a few minutes)..."
-docker-compose up -d
+docker-compose up -d --build
 
 # Wait for services to be healthy
 echo ""
@@ -85,7 +85,7 @@ fi
 
 echo ""
 echo "Checking frontend..."
-if curl -s http://localhost:3000 > /dev/null 2>&1; then
+if curl -s http://localhost:3001 > /dev/null 2>&1; then
     echo "✓ React frontend is ready"
 else
     echo "⏳ React frontend is starting..."
@@ -96,10 +96,10 @@ echo "==========================================================================
 echo "Application URLs:"
 echo "============================================================================"
 echo ""
-echo "Frontend:        http://localhost:3000"
-echo "Backend API:     http://localhost:8000"
-echo "API Docs:        http://localhost:8000/api/schema/swagger/"
-echo "Admin Panel:     http://localhost:8000/admin/"
+echo "Frontend:        http://localhost:3001"
+echo "Backend API:     http://localhost:8001"
+echo "API Docs:        http://localhost:8001/api/schema/swagger/"
+echo "Admin Panel:     http://localhost:8001/admin/"
 echo "Database:        localhost:5432"
 echo "Redis:           localhost:6379"
 echo ""
@@ -135,7 +135,7 @@ echo "Setup Complete! 🎉"
 echo "============================================================================"
 echo ""
 echo "Next steps:"
-echo "1. Open http://localhost:3000 in your browser"
+echo "1. Open http://localhost:3001 in your browser"
 echo "2. Login with the test credentials above"
 echo "3. Explore the application"
 echo ""

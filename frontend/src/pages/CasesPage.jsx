@@ -1,8 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import casesService from '../services/casesService';
 
+const getSeverityLabel = (severity) => {
+  const labels = {
+    0: 'Critical',
+    1: 'Level 1 - Severe',
+    2: 'Level 2 - Major',
+    3: 'Level 3 - Minor',
+  };
+  return labels[severity] || 'N/A';
+};
+
 const CasesPage = () => {
+  const { user } = useSelector((state) => state.auth);
+  const userRoles = (user?.roles || []).map(r => r.toLowerCase());
+  const ALLOWED_CREATE_ROLES = ['chief', 'captain', 'sergeant', 'detective', 'police officer', 'patrol officer', 'administrator'];
+  const canCreateCase = user?.is_staff || userRoles.some(r => ALLOWED_CREATE_ROLES.includes(r));
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -70,12 +85,14 @@ const CasesPage = () => {
             <h1 className="text-4xl font-bold text-gray-900">Cases</h1>
             <p className="text-gray-600 mt-2">Total: {cases.length} cases</p>
           </div>
-          <Link
-            to="/cases/new"
-            className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition"
-          >
-            Create New Case
-          </Link>
+          {canCreateCase && (
+            <Link
+              to="/cases/new"
+              className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition"
+            >
+              Create New Case
+            </Link>
+          )}
         </div>
 
         {error && (
@@ -124,7 +141,7 @@ const CasesPage = () => {
                       Case ID
                     </th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                      Crime Type
+                      Title
                     </th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
                       Status
@@ -147,7 +164,7 @@ const CasesPage = () => {
                         #{caseItem.id}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {caseItem.crime_type || 'Unknown'}
+                        {caseItem.title}
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -159,7 +176,7 @@ const CasesPage = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {caseItem.crime_severity || 'N/A'}
+                        {getSeverityLabel(caseItem.crime_severity)}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {new Date(caseItem.created_at).toLocaleDateString()}

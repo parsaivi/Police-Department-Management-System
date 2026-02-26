@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import models, transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -23,6 +23,15 @@ class ComplaintViewSet(viewsets.ModelViewSet):
     filterset_fields = ["status", "crime_severity", "created_by"]
     search_fields = ["title", "description", "location"]
     ordering_fields = ["created_at", "updated_at", "crime_severity"]
+
+    def create(self, request, *args, **kwargs):
+        """Only users with Complainant role can file complaints."""
+        if not request.user.is_staff and not request.user.has_role("Complainant"):
+            return Response(
+                {"error": "Only users with Complainant role can file complaints."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().create(request, *args, **kwargs)
 
     def get_queryset(self):
         user = self.request.user
@@ -230,8 +239,5 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         else:
             return Response({"message": "Complainant request rejected."})
 
-
-# Need to import models for Q
-from django.db import models
 
 

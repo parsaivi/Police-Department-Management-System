@@ -113,3 +113,7 @@ class DetectiveBoardSerializer(serializers.Serializer):
         required=False,
         help_text="Connections between items (red lines)"
     )
+    notes = serializers.JSONField(
+        required=False,
+        help_text="Detective notes on the board"
+    )

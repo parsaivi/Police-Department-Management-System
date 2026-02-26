@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import casesService from '../services/casesService';
 
 const getSeverityLabel = (severity) => {
@@ -45,24 +46,124 @@ const formatUserName = (user) => {
 
 const CaseDetailPage = () => {
   const { caseId } = useParams();
+  const { user } = useSelector((state) => state.auth);
+  const userRoles = (user?.roles || user?.groups || []).map(r => r.toLowerCase());
   const [caseData, setCaseData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [rejectNotes, setRejectNotes] = useState('');
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [suspects, setSuspects] = useState([]);
+  const [showAddSuspect, setShowAddSuspect] = useState(false);
+  const [suspectForm, setSuspectForm] = useState({ full_name: '', description: '', aliases: '', last_known_location: '' });
+
+  const canApproveCase = user?.is_staff || ['sergeant', 'captain', 'chief'].some(r => userRoles.includes(r));
+  const isDetective = userRoles.includes('detective');
+  const isSergeant = userRoles.includes('sergeant');
+
+  const fetchCase = async () => {
+    try {
+      setLoading(true);
+      const response = await casesService.getCase(caseId);
+      setCaseData(response.data);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to fetch case details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSuspects = async () => {
+    try {
+      const response = await casesService.getCaseSuspects(caseId);
+      setSuspects(response.data || []);
+    } catch (err) {
+      // Suspects might not exist yet
+    }
+  };
 
   useEffect(() => {
-    const fetchCase = async () => {
-      try {
-        setLoading(true);
-        const response = await casesService.getCase(caseId);
-        setCaseData(response.data);
-      } catch (err) {
-        setError(err.response?.data?.detail || 'Failed to fetch case details');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchCase();
+    fetchSuspects();
   }, [caseId]);
+
+  const handleApproveCase = async () => {
+    try {
+      setActionLoading(true);
+      await casesService.approveCase(caseId);
+      await fetchCase();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to approve case');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStartInvestigation = async () => {
+    try {
+      setActionLoading(true);
+      await casesService.startInvestigation(caseId);
+      await fetchCase();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to start investigation');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApproveSuspects = async () => {
+    try {
+      setActionLoading(true);
+      await casesService.approveSuspects(caseId);
+      await fetchCase();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to approve suspects');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleAddSuspect = async () => {
+    if (!suspectForm.full_name.trim()) return;
+    try {
+      setActionLoading(true);
+      await casesService.addSuspect(caseId, suspectForm);
+      setSuspectForm({ full_name: '', description: '', aliases: '', last_known_location: '' });
+      setShowAddSuspect(false);
+      await fetchSuspects();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to add suspect');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleIdentifySuspects = async () => {
+    try {
+      setActionLoading(true);
+      await casesService.identifySuspects(caseId);
+      await fetchCase();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to submit suspects to sergeant');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectSuspects = async () => {
+    try {
+      setActionLoading(true);
+      await casesService.rejectSuspects(caseId, { notes: rejectNotes });
+      setShowRejectForm(false);
+      setRejectNotes('');
+      await fetchCase();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to reject suspects');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -119,6 +220,228 @@ const CaseDetailPage = () => {
             </span>
           </div>
         </div>
+
+        {/* Action Buttons */}
+        {caseData.status === 'pending_approval' && canApproveCase && (
+          <div className="bg-yellow-50 border border-yellow-300 rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-yellow-800 mb-3">Pending Approval</h2>
+            <p className="text-yellow-700 mb-4">This case requires superior approval to proceed.</p>
+            <button
+              onClick={handleApproveCase}
+              disabled={actionLoading}
+              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+            >
+              {actionLoading ? 'Approving...' : 'Approve Case'}
+            </button>
+          </div>
+        )}
+
+        {caseData.status === 'created' && isDetective && (
+          <div className="bg-blue-50 border border-blue-300 rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-blue-800 mb-3">Case Ready for Investigation</h2>
+            <p className="text-blue-700 mb-4">This case is approved and ready for detective investigation.</p>
+            <button
+              onClick={handleStartInvestigation}
+              disabled={actionLoading}
+              className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+            >
+              {actionLoading ? 'Starting...' : 'Start Investigation'}
+            </button>
+          </div>
+        )}
+
+        {caseData.status === 'investigation' && isDetective && (
+          <div className="bg-purple-50 border border-purple-300 rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-purple-800 mb-3">Under Investigation</h2>
+            <p className="text-purple-700 mb-4">Use the Detective Board to manage evidence and identify suspects.</p>
+            <Link
+              to={`/detective-board/${caseId}`}
+              className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-6 rounded-lg font-semibold transition inline-block"
+            >
+              Open Detective Board
+            </Link>
+          </div>
+        )}
+
+        {/* Suspects Section - for detective during investigation */}
+        {caseData.status === 'investigation' && isDetective && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Case Suspects</h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAddSuspect(!showAddSuspect)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition"
+                >
+                  + Add Suspect
+                </button>
+                {suspects.length > 0 && (
+                  <button
+                    onClick={handleIdentifySuspects}
+                    disabled={actionLoading}
+                    className="bg-orange-600 hover:bg-orange-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Sending...' : 'Submit Suspects to Sergeant'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {showAddSuspect && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      value={suspectForm.full_name}
+                      onChange={(e) => setSuspectForm({ ...suspectForm, full_name: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="Suspect full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Aliases</label>
+                    <input
+                      type="text"
+                      value={suspectForm.aliases}
+                      onChange={(e) => setSuspectForm({ ...suspectForm, aliases: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="Known aliases"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Known Location</label>
+                    <input
+                      type="text"
+                      value={suspectForm.last_known_location}
+                      onChange={(e) => setSuspectForm({ ...suspectForm, last_known_location: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="Last known location"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea
+                      value={suspectForm.description}
+                      onChange={(e) => setSuspectForm({ ...suspectForm, description: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      rows="2"
+                      placeholder="Description"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={handleAddSuspect}
+                  disabled={actionLoading || !suspectForm.full_name.trim()}
+                  className="mt-3 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition disabled:opacity-50"
+                >
+                  {actionLoading ? 'Adding...' : 'Add Suspect'}
+                </button>
+              </div>
+            )}
+
+            {suspects.length > 0 ? (
+              <div className="space-y-3">
+                {suspects.map((link) => (
+                  <div key={link.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name || `Suspect #${link.suspect}`}</p>
+                        {link.suspect_detail?.aliases && (
+                          <p className="text-sm text-gray-600">Aliases: {link.suspect_detail.aliases}</p>
+                        )}
+                        {link.suspect_detail?.description && (
+                          <p className="text-sm text-gray-600 mt-1">{link.suspect_detail.description}</p>
+                        )}
+                      </div>
+                      <span className="inline-block px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800">
+                        {link.role?.replace(/_/g, ' ').toUpperCase()}
+                      </span>
+                    </div>
+                    {link.notes && <p className="text-sm text-gray-500 mt-2">{link.notes}</p>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">No suspects added yet.</p>
+            )}
+          </div>
+        )}
+
+        {/* Suspects display for sergeant on suspect_identified cases */}
+        {caseData.status === 'suspect_identified' && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Identified Suspects</h2>
+            {suspects.length > 0 ? (
+              <div className="space-y-3">
+                {suspects.map((link) => (
+                  <div key={link.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name || `Suspect #${link.suspect}`}</p>
+                        {link.suspect_detail?.aliases && (
+                          <p className="text-sm text-gray-600">Aliases: {link.suspect_detail.aliases}</p>
+                        )}
+                        {link.suspect_detail?.description && (
+                          <p className="text-sm text-gray-600 mt-1">{link.suspect_detail.description}</p>
+                        )}
+                      </div>
+                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${
+                        link.suspect_detail?.status === 'arrested' ? 'bg-gray-100 text-gray-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {link.suspect_detail?.status?.replace(/_/g, ' ').toUpperCase() || link.role?.replace(/_/g, ' ').toUpperCase()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">No suspects identified.</p>
+            )}
+          </div>
+        )}
+
+        {caseData.status === 'suspect_identified' && isSergeant && (
+          <div className="bg-orange-50 border border-orange-300 rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-orange-800 mb-3">Suspects Identified – Awaiting Sergeant Approval</h2>
+            <p className="text-orange-700 mb-4">Review the evidence and suspects, then approve or reject.</p>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleApproveSuspects}
+                disabled={actionLoading}
+                className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+              >
+                {actionLoading ? 'Processing...' : 'Approve – Authorize Arrest'}
+              </button>
+              <button
+                onClick={() => setShowRejectForm(!showRejectForm)}
+                disabled={actionLoading}
+                className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+              >
+                Reject
+              </button>
+            </div>
+            {showRejectForm && (
+              <div className="mt-4">
+                <textarea
+                  value={rejectNotes}
+                  onChange={(e) => setRejectNotes(e.target.value)}
+                  placeholder="Reason for rejection..."
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500"
+                  rows="3"
+                />
+                <button
+                  onClick={handleRejectSuspects}
+                  disabled={actionLoading || !rejectNotes.trim()}
+                  className="mt-2 bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+                >
+                  {actionLoading ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Summary */}
         {caseData.summary && (

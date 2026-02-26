@@ -29,7 +29,32 @@ class SuspectViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "wanted_since"]
 
     def get_queryset(self):
-        return Suspect.objects.all()
+        user = self.request.user
+        if user.is_staff:
+            return Suspect.objects.all()
+
+        user_roles = user.get_roles()
+
+        # Detectives see suspects from their cases
+        if "Detective" in user_roles:
+            from apps.suspects.models import CaseSuspect
+            suspect_ids = CaseSuspect.objects.filter(
+                case__lead_detective=user
+            ).values_list("suspect_id", flat=True)
+            return Suspect.objects.filter(
+                models.Q(id__in=suspect_ids)
+            ).distinct()
+
+        # Sergeant sees suspects from cases in suspect_identified status
+        if "Sergeant" in user_roles:
+            from apps.suspects.models import CaseSuspect
+            from apps.cases.models import CaseStatus
+            suspect_ids = CaseSuspect.objects.filter(
+                case__status__in=[CaseStatus.SUSPECT_IDENTIFIED, CaseStatus.INTERROGATION]
+            ).values_list("suspect_id", flat=True)
+            return Suspect.objects.filter(id__in=suspect_ids).distinct()
+
+        return Suspect.objects.none()
 
     def get_serializer_class(self):
         if self.action == "list":

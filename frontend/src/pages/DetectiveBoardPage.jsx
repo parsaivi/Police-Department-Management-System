@@ -4,7 +4,7 @@ import casesService from '../services/casesService';
 
 const DetectiveBoardPage = () => {
   const { caseId } = useParams();
-  const [board, setBoard] = useState({ notes: [], connections: [] });
+  const [board, setBoard] = useState({ notes: [], connections: [], evidence_items: [] });
   const [newNote, setNewNote] = useState('');
   const [newConnection, setNewConnection] = useState({ from: 0, to: 1, type: 'related' });
   const [loading, setLoading] = useState(false);
@@ -59,7 +59,7 @@ const DetectiveBoardPage = () => {
     try {
       setLoading(true);
       const response = await casesService.getDetectiveBoard(caseId);
-      setBoard(response.data || { notes: [], connections: [] });
+      setBoard(response.data || { notes: [], connections: [], evidence_items: [] });
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to fetch detective board');
     } finally {
@@ -257,6 +257,45 @@ const DetectiveBoardPage = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Evidence Items from Case */}
+              {board.evidence_items?.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Case Evidence</h3>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {board.evidence_items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="bg-blue-50 border border-blue-200 p-3 rounded-lg"
+                      >
+                        <p className="text-sm font-semibold text-blue-900">{item.title}</p>
+                        <p className="text-xs text-blue-700 mt-1">
+                          {item.evidence_type?.replace(/_/g, ' ').toUpperCase()}
+                        </p>
+                        <span
+                          className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                            item.status === 'verified'
+                              ? 'bg-green-100 text-green-800'
+                              : item.status === 'rejected'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}
+                        >
+                          {item.status?.toUpperCase()}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setNewNote(`[Evidence #${item.id}] ${item.title}: ${item.description || ''}`);
+                          }}
+                          className="mt-2 text-xs text-purple-600 hover:text-purple-700 font-semibold block"
+                        >
+                          + Add to Board
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Delete Connections */}
               {board.connections.length > 0 && (

@@ -9,13 +9,23 @@ User = get_user_model()
 
 class CaseSuspectSerializer(serializers.ModelSerializer):
     added_by = UserSerializer(read_only=True)
+    suspect_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = CaseSuspect
         fields = [
-            "id", "case", "suspect", "role", "notes", "added_by", "created_at"
+            "id", "case", "suspect", "suspect_detail", "role", "notes", "added_by", "created_at"
         ]
         read_only_fields = ["added_by"]
+
+    def get_suspect_detail(self, obj):
+        return {
+            "id": obj.suspect.id,
+            "full_name": obj.suspect.full_name,
+            "aliases": obj.suspect.aliases,
+            "status": obj.suspect.status,
+            "description": obj.suspect.description,
+        }
 
 
 class InterrogationSerializer(serializers.ModelSerializer):

@@ -34,6 +34,8 @@ class CaseViewSet(viewsets.ModelViewSet):
             )
         return super().create(request, *args, **kwargs)
 
+    APPROVAL_ROLES = ["Chief", "Captain", "Sergeant"]
+
     def get_queryset(self):
         user = self.request.user
         
@@ -41,13 +43,28 @@ class CaseViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return Case.objects.all()
         
-        # Users see cases they're involved in
-        return Case.objects.filter(
+        user_roles = user.get_roles()
+        
+        q = (
             models.Q(created_by=user) |
             models.Q(lead_detective=user) |
             models.Q(officers=user) |
             models.Q(approved_by=user)
-        ).distinct()
+        )
+        
+        # Superiors (Sergeant, Captain, Chief) can see pending_approval cases
+        if any(role in self.APPROVAL_ROLES for role in user_roles):
+            q |= models.Q(status=CaseStatus.PENDING_APPROVAL)
+        
+        # Sergeant can see suspect_identified cases (to approve/reject suspects)
+        if "Sergeant" in user_roles:
+            q |= models.Q(status=CaseStatus.SUSPECT_IDENTIFIED)
+        
+        # Detectives can see created cases (to pick them up for investigation)
+        if "Detective" in user_roles:
+            q |= models.Q(status=CaseStatus.CREATED)
+        
+        return Case.objects.filter(q).distinct()
 
     def _log_transition(self, case, from_status, to_status, user, notes=""):
         CaseHistory.objects.create(
@@ -86,10 +103,8 @@ class CaseViewSet(viewsets.ModelViewSet):
             for witness_data in witnesses_data:
                 CrimeSceneWitness.objects.create(case=case, **witness_data)
             
-            # Submit for approval (unless created by Chief)
-            if request.user.has_role("Chief"):
-                case.start_investigation()
-            else:
+            # Submit for approval (unless created by Chief – no approval needed)
+            if not request.user.has_role("Chief"):
                 case.submit_for_approval()
             case.save()
             
@@ -105,14 +120,21 @@ class CaseViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
-        """Superior approves the case."""
+        """Superior approves the case (Sergeant, Captain, Chief only)."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and not any(role in self.APPROVAL_ROLES for role in user_roles):
+            return Response(
+                {"error": "Only Sergeant, Captain, or Chief can approve cases."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
         case = self.get_object()
         from_status = case.status
         
         try:
-            case.approve_and_start(request.user)
+            case.approve_case(request.user)
             case.save()
-            self._log_transition(case, from_status, case.status, request.user)
+            self._log_transition(case, from_status, case.status, request.user, "Case approved by superior")
             return Response(CaseSerializer(case, context={"request": request}).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -160,6 +182,55 @@ class CaseViewSet(viewsets.ModelViewSet):
             case.identify_suspect()
             case.save()
             self._log_transition(case, from_status, case.status, request.user)
+            return Response(CaseSerializer(case, context={"request": request}).data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["post"])
+    def approve_suspects(self, request, pk=None):
+        """Sergeant approves identified suspects → arrest begins."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Sergeant" not in user_roles:
+            return Response(
+                {"error": "Only Sergeant can approve identified suspects."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        case = self.get_object()
+        from_status = case.status
+        
+        try:
+            case.start_interrogation()
+            case.save()
+            self._log_transition(
+                case, from_status, case.status, request.user,
+                "Sergeant approved suspects – arrest authorized"
+            )
+            return Response(CaseSerializer(case, context={"request": request}).data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["post"])
+    def reject_suspects(self, request, pk=None):
+        """Sergeant rejects identified suspects → case returns to investigation."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Sergeant" not in user_roles:
+            return Response(
+                {"error": "Only Sergeant can reject identified suspects."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        case = self.get_object()
+        from_status = case.status
+        notes = request.data.get("notes", "")
+        
+        try:
+            case.reject_suspects()
+            case.save()
+            self._log_transition(
+                case, from_status, case.status, request.user,
+                notes or "Sergeant rejected suspects – case returned to investigation"
+            )
             return Response(CaseSerializer(case, context={"request": request}).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -270,7 +341,13 @@ class CaseViewSet(viewsets.ModelViewSet):
         case = self.get_object()
         
         if request.method == "GET":
-            return Response(case.detective_board)
+            from apps.evidence.models import Evidence
+            evidence_qs = Evidence.objects.filter(case=case).values(
+                "id", "title", "description", "evidence_type", "status"
+            )
+            board_data = case.detective_board or {}
+            board_data["evidence_items"] = list(evidence_qs)
+            return Response(board_data)
         
         serializer = DetectiveBoardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -278,6 +355,7 @@ class CaseViewSet(viewsets.ModelViewSet):
         case.detective_board = {
             "layout": serializer.validated_data.get("layout", {}),
             "connections": serializer.validated_data.get("connections", []),
+            "notes": serializer.validated_data.get("notes", case.detective_board.get("notes", [])),
         }
         case.save()
         
@@ -295,3 +373,61 @@ class CaseViewSet(viewsets.ModelViewSet):
             CrimeSceneWitnessSerializer(witness).data,
             status=status.HTTP_201_CREATED
         )
+
+    @action(detail=True, methods=["post"])
+    def add_suspect(self, request, pk=None):
+        """Detective adds a suspect to this case."""
+        case = self.get_object()
+
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Detective" not in user_roles:
+            return Response(
+                {"error": "Only detectives can add suspects to cases."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if not request.user.is_staff and case.lead_detective != request.user:
+            return Response(
+                {"error": "Only the lead detective of this case can add suspects."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        from apps.suspects.models import Suspect, CaseSuspect
+
+        full_name = request.data.get("full_name")
+        if not full_name:
+            return Response(
+                {"error": "full_name is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            suspect = Suspect.objects.create(
+                full_name=full_name,
+                aliases=request.data.get("aliases", ""),
+                description=request.data.get("description", ""),
+                last_known_location=request.data.get("last_known_location", ""),
+            )
+
+            CaseSuspect.objects.create(
+                case=case,
+                suspect=suspect,
+                role=request.data.get("role", "primary"),
+                notes=request.data.get("notes", ""),
+                added_by=request.user,
+            )
+
+        from apps.suspects.serializers import SuspectSerializer as SuspectSer
+        return Response(
+            SuspectSer(suspect).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=True, methods=["get"])
+    def suspects(self, request, pk=None):
+        """Get all suspects linked to this case."""
+        case = self.get_object()
+        from apps.suspects.models import CaseSuspect
+        from apps.suspects.serializers import CaseSuspectSerializer
+        links = CaseSuspect.objects.filter(case=case).select_related("suspect", "added_by")
+        return Response(CaseSuspectSerializer(links, many=True).data)

@@ -22,6 +22,9 @@ export const casesService = {
   // Update detective board
   updateDetectiveBoard: (id, boardData) => api.put(`/cases/${id}/detective_board/`, boardData),
   
+  // Approve pending case (Sergeant/Captain/Chief)
+  approveCase: (id) => api.post(`/cases/${id}/approve/`),
+
   // Start investigation
   startInvestigation: (id) => api.post(`/cases/${id}/start_investigation/`),
   
@@ -42,6 +45,24 @@ export const casesService = {
   
   // Close as unsolved
   closeUnsolved: (id) => api.post(`/cases/${id}/close_unsolved/`),
+
+  // Sergeant approves suspects
+  approveSuspects: (id) => api.post(`/cases/${id}/approve_suspects/`),
+
+  // Sergeant rejects suspects
+  rejectSuspects: (id, data) => api.post(`/cases/${id}/reject_suspects/`, data),
+
+  // Assign detective
+  assignDetective: (id, data) => api.post(`/cases/${id}/assign_detective/`, data),
+
+  // Add suspect to case
+  addSuspect: (caseId, data) => api.post(`/cases/${caseId}/add_suspect/`, data),
+
+  // Get case suspects
+  getCaseSuspects: (caseId) => api.get(`/cases/${caseId}/suspects/`),
+
+  // Identify suspects (detective sends to sergeant)
+  identifySuspects: (id) => api.post(`/cases/${id}/identify_suspect/`),
 };
 
 export default casesService;

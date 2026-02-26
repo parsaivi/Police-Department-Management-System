@@ -40,13 +40,29 @@ class ComplaintViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return Complaint.objects.all()
         
-        # Users see complaints they created or are complainants on
-        return Complaint.objects.filter(
+        q = (
             models.Q(created_by=user) |
             models.Q(complainants=user) |
             models.Q(assigned_cadet=user) |
             models.Q(assigned_officer=user)
-        ).distinct()
+        )
+        
+        # Cadets see submitted complaints (awaiting cadet assignment/review)
+        if user.has_role("Cadet"):
+            q |= models.Q(status__in=[
+                ComplaintStatus.SUBMITTED,
+                ComplaintStatus.CADET_REVIEW,
+                ComplaintStatus.RETURNED_TO_CADET,
+            ])
+        
+        # Police Officers see complaints in officer review
+        if user.has_role("Police Officer"):
+            q |= models.Q(status__in=[
+                ComplaintStatus.SUBMITTED,
+                ComplaintStatus.OFFICER_REVIEW,
+            ])
+        
+        return Complaint.objects.filter(q).distinct()
 
     def _log_transition(self, complaint, from_status, to_status, user, message=""):
         ComplaintHistory.objects.create(

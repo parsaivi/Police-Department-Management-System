@@ -15,7 +15,7 @@ const getSeverityLabel = (severity) => {
 
 const CasesPage = () => {
   const { user } = useSelector((state) => state.auth);
-  const userRoles = (user?.roles || []).map(r => r.toLowerCase());
+  const userRoles = (user?.roles || user?.groups || []).map(r => r.toLowerCase());
   const ALLOWED_CREATE_ROLES = ['chief', 'captain', 'sergeant', 'detective', 'police officer', 'patrol officer', 'administrator'];
   const canCreateCase = user?.is_staff || userRoles.some(r => ALLOWED_CREATE_ROLES.includes(r));
   const [cases, setCases] = useState([]);
@@ -116,9 +116,12 @@ const CasesPage = () => {
               className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             >
               <option value="all">All Cases</option>
+              <option value="pending_approval">Pending Approval</option>
               <option value="created">Created</option>
               <option value="investigation">Investigation</option>
               <option value="suspect_identified">Suspect Identified</option>
+              <option value="interrogation">Interrogation</option>
+              <option value="pending_captain">Pending Captain</option>
               <option value="trial">Trial</option>
               <option value="closed_solved">Solved</option>
               <option value="closed_unsolved">Unsolved</option>
@@ -181,13 +184,30 @@ const CasesPage = () => {
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {new Date(caseItem.created_at).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 text-sm">
+                      <td className="px-6 py-4 text-sm space-x-2">
                         <Link
                           to={`/cases/${caseItem.id}`}
                           className="text-blue-600 hover:text-blue-700 font-semibold"
                         >
                           View Details
                         </Link>
+                        {caseItem.status === 'pending_approval' &&
+                          (user?.is_staff || ['sergeant', 'captain', 'chief'].some(r => userRoles.includes(r))) && (
+                          <button
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              try {
+                                await casesService.approveCase(caseItem.id);
+                                fetchCases();
+                              } catch (err) {
+                                setError(err.response?.data?.error || 'Failed to approve');
+                              }
+                            }}
+                            className="text-green-600 hover:text-green-700 font-semibold"
+                          >
+                            Approve
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

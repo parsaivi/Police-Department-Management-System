@@ -144,19 +144,19 @@ class Case(TimeStampedModel):
     @transition(
         field=status,
         source=CaseStatus.PENDING_APPROVAL,
-        target=CaseStatus.INVESTIGATION
+        target=CaseStatus.CREATED
     )
-    def approve_and_start(self, approver):
-        """Superior approves and starts investigation."""
+    def approve_case(self, approver):
+        """Superior approves crime scene case → moves to Created."""
         self.approved_by = approver
 
     @transition(
         field=status,
-        source=[CaseStatus.CREATED, CaseStatus.PENDING_APPROVAL],
+        source=CaseStatus.CREATED,
         target=CaseStatus.INVESTIGATION
     )
     def start_investigation(self, detective=None):
-        """Start investigation (complaint cases skip approval)."""
+        """Detective starts investigation on a created case."""
         if detective:
             self.lead_detective = detective
 
@@ -176,6 +176,15 @@ class Case(TimeStampedModel):
     )
     def start_interrogation(self):
         """Begin interrogation of suspects."""
+        pass
+
+    @transition(
+        field=status,
+        source=CaseStatus.SUSPECT_IDENTIFIED,
+        target=CaseStatus.INVESTIGATION
+    )
+    def reject_suspects(self):
+        """Sergeant rejects identified suspects, case returns to investigation."""
         pass
 
     @transition(

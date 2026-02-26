@@ -12,11 +12,13 @@ const ComplaintDetailPage = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [returnMessage, setReturnMessage] = useState('');
+  const [cadetUserId, setCadetUserId] = useState('');
 
   const userRoles = (user?.roles || []).map((r) => r.toLowerCase());
   const isCadet = userRoles.includes('cadet');
   const isOfficer = userRoles.includes('police officer');
   const isComplainant = userRoles.includes('complainant');
+  const isAdmin = user?.is_staff;
 
   useEffect(() => {
     fetchComplaint();
@@ -367,8 +369,37 @@ const ComplaintDetailPage = () => {
               </button>
             )}
 
-            {/* Cadet: cadet_review → Escalate or Return */}
-            {isCadet && complaint.status === 'cadet_review' && (
+            {/* Officer/Admin: submitted → Assign Cadet */}
+            {(isOfficer || isAdmin) && complaint.status === 'submitted' && (
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Assign to Cadet (User ID)
+                </label>
+                <div className="flex gap-3">
+                  <input
+                    type="number"
+                    value={cadetUserId}
+                    onChange={(e) => setCadetUserId(e.target.value)}
+                    placeholder="Cadet user ID"
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    onClick={() =>
+                      handleAction(() =>
+                        complaintService.assignToCadet(complaintId, { target_user_id: parseInt(cadetUserId) })
+                      )
+                    }
+                    disabled={actionLoading || !cadetUserId}
+                    className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Assigning...' : 'Assign Cadet'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Cadet: cadet_review OR returned_to_cadet → Escalate or Return to Complainant */}
+            {isCadet && (complaint.status === 'cadet_review' || complaint.status === 'returned_to_cadet') && (
               <div className="space-y-4">
                 <div className="flex gap-3">
                   <button
@@ -381,12 +412,12 @@ const ComplaintDetailPage = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Return Reason
+                    Return Reason <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={returnMessage}
                     onChange={(e) => setReturnMessage(e.target.value)}
-                    placeholder="Enter reason for returning to complainant..."
+                    placeholder="Enter reason for returning to complainant (required)..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
                     rows={3}
                   />
@@ -405,7 +436,7 @@ const ComplaintDetailPage = () => {
               </div>
             )}
 
-            {/* Officer: officer_review → Approve, Reject, Return to Cadet */}
+            {/* Officer: officer_review → Approve (create case), Return to Cadet, Reject */}
             {isOfficer && complaint.status === 'officer_review' && (
               <div className="space-y-4">
                 <div className="flex gap-3">
@@ -414,10 +445,14 @@ const ComplaintDetailPage = () => {
                     disabled={actionLoading}
                     className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
                   >
-                    {actionLoading ? 'Approving...' : 'Approve'}
+                    {actionLoading ? 'Approving...' : 'Approve & Create Case'}
                   </button>
                   <button
-                    onClick={() => handleAction(() => complaintService.rejectComplaint(complaintId))}
+                    onClick={() =>
+                      handleAction(() =>
+                        complaintService.rejectComplaint(complaintId, { message: returnMessage })
+                      )
+                    }
                     disabled={actionLoading}
                     className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
                   >
@@ -453,7 +488,8 @@ const ComplaintDetailPage = () => {
             {/* No actions available */}
             {!(
               (isComplainant && (complaint.status === 'draft' || complaint.status === 'returned_to_complainant')) ||
-              (isCadet && complaint.status === 'cadet_review') ||
+              ((isOfficer || isAdmin) && complaint.status === 'submitted') ||
+              (isCadet && (complaint.status === 'cadet_review' || complaint.status === 'returned_to_cadet')) ||
               (isOfficer && complaint.status === 'officer_review')
             ) && (
               <p className="text-gray-500">No actions available for your role on this complaint.</p>

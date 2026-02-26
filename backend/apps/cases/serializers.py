@@ -108,12 +108,13 @@ class CrimeSceneCaseSerializer(serializers.Serializer):
 class DetectiveBoardSerializer(serializers.Serializer):
     """Serializer for detective board updates."""
     
-    layout = serializers.JSONField(help_text="Board layout with item positions")
-    connections = serializers.JSONField(
-        required=False,
-        help_text="Connections between items (red lines)"
-    )
     notes = serializers.JSONField(
         required=False,
-        help_text="Detective notes on the board"
+        default=list,
+        help_text="Sticky notes on the board [{id, content, x, y}]"
+    )
+    connections = serializers.JSONField(
+        required=False,
+        default=list,
+        help_text="Connections between notes (red lines) [{id, from, to, type}]"
     )

@@ -61,8 +61,10 @@ class CaseViewSet(viewsets.ModelViewSet):
             q |= models.Q(status=CaseStatus.SUSPECT_IDENTIFIED)
         
         # Detectives can see created cases (to pick them up for investigation)
+        # Their own investigation cases are already visible via lead_detective=user
         if "Detective" in user_roles:
             q |= models.Q(status=CaseStatus.CREATED)
+            q |= models.Q(status=CaseStatus.INVESTIGATION)
         
         return Case.objects.filter(q).distinct()
 
@@ -160,12 +162,12 @@ class CaseViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def start_investigation(self, request, pk=None):
-        """Start investigation phase."""
+        """Start investigation phase – assigns requesting detective as lead."""
         case = self.get_object()
         from_status = case.status
         
         try:
-            case.start_investigation()
+            case.start_investigation(detective=request.user)
             case.save()
             self._log_transition(case, from_status, case.status, request.user)
             return Response(CaseSerializer(case, context={"request": request}).data)
@@ -345,7 +347,9 @@ class CaseViewSet(viewsets.ModelViewSet):
             evidence_qs = Evidence.objects.filter(case=case).values(
                 "id", "title", "description", "evidence_type", "status"
             )
-            board_data = case.detective_board or {}
+            board_data = dict(case.detective_board or {})
+            board_data.setdefault("notes", [])
+            board_data.setdefault("connections", [])
             board_data["evidence_items"] = list(evidence_qs)
             return Response(board_data)
         
@@ -353,9 +357,8 @@ class CaseViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         case.detective_board = {
-            "layout": serializer.validated_data.get("layout", {}),
+            "notes": serializer.validated_data.get("notes", []),
             "connections": serializer.validated_data.get("connections", []),
-            "notes": serializer.validated_data.get("notes", case.detective_board.get("notes", [])),
         }
         case.save()
         

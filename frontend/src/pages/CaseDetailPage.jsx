@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import casesService from '../services/casesService';
 import suspectService from '../services/suspectService';
+import judiciaryService from '../services/judiciaryService';
 
 const getSeverityLabel = (severity) => {
   const labels = {
@@ -66,6 +67,16 @@ const CaseDetailPage = () => {
   const isCaptain = userRoles.includes('captain');
   const isChief = userRoles.includes('chief');
   const [guiltScores, setGuiltScores] = useState({});
+  const [captainDecisions, setCaptainDecisions] = useState({});
+  const [chiefDecisions, setChiefDecisions] = useState({});
+  const [trialsForCase, setTrialsForCase] = useState([]);
+  const [showCreateTrial, setShowCreateTrial] = useState(false);
+  const [trialForm, setTrialForm] = useState({
+    scheduled_date: '',
+    judge_id: '',
+    court_name: '',
+    court_room: '',
+  });
 
   const fetchCase = async () => {
     try {
@@ -92,6 +103,21 @@ const CaseDetailPage = () => {
     fetchCase();
     fetchSuspects();
   }, [caseId]);
+
+  const fetchTrialsForCase = async () => {
+    try {
+      const res = await judiciaryService.getTrials({ case: caseId });
+      setTrialsForCase(res.data?.results ?? res.data ?? []);
+    } catch {
+      setTrialsForCase([]);
+    }
+  };
+
+  useEffect(() => {
+    if (caseData?.status === 'trial') {
+      fetchTrialsForCase();
+    }
+  }, [caseId, caseData?.status]);
 
   const handleApproveCase = async () => {
     try {
@@ -219,6 +245,63 @@ const CaseDetailPage = () => {
       await fetchCase();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to approve');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCaptainDecision = async (suspectId, decision) => {
+    if (!decision?.trim()) return;
+    try {
+      setActionLoading(true);
+      setError(null);
+      await suspectService.captainDecision(suspectId, { decision: decision.trim() });
+      await fetchSuspects();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save captain decision');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleChiefDecision = async (suspectId, decision) => {
+    if (!decision?.trim()) return;
+    try {
+      setActionLoading(true);
+      setError(null);
+      await suspectService.chiefDecision(suspectId, { decision: decision.trim() });
+      await fetchSuspects();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to save chief decision');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const isJudge = userRoles.includes('judge');
+
+  const handleCreateTrial = async (e) => {
+    e?.preventDefault();
+    const judgeId = trialForm.judge_id || user?.id;
+    if (!judgeId || !trialForm.scheduled_date) {
+      setError('Scheduled date and judge are required.');
+      return;
+    }
+    try {
+      setActionLoading(true);
+      setError(null);
+      await judiciaryService.createTrial({
+        case_id: parseInt(caseId, 10),
+        judge_id: judgeId,
+        scheduled_date: trialForm.scheduled_date,
+        court_name: trialForm.court_name || '',
+        court_room: trialForm.court_room || '',
+      });
+      setShowCreateTrial(false);
+      setTrialForm({ scheduled_date: '', judge_id: '', court_name: '', court_room: '' });
+      await fetchTrialsForCase();
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.detail || 'Failed to create trial');
     } finally {
       setActionLoading(false);
     }
@@ -578,31 +661,56 @@ const CaseDetailPage = () => {
           <div className="bg-indigo-50 border border-indigo-300 rounded-lg shadow p-6 mb-6">
             <h2 className="text-lg font-semibold text-indigo-800 mb-3">Pending Captain Decision</h2>
             <p className="text-indigo-700 mb-4">
-              Review guilt scores, evidence, and testimonies. Then approve to proceed.
+              Enter your decision (opinion with statements, evidence, and scores) for each suspect. All decisions must be recorded before approving.
             </p>
             {suspects.length > 0 && (
-              <div className="space-y-3 mb-4">
-                {suspects.map((link) => (
-                  <div key={link.id} className="border border-indigo-200 rounded-lg p-4 bg-white">
-                    <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name}</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Detective score: <span className="font-bold">{link.suspect_detail?.detective_guilt_score ?? '—'}/10</span> | 
-                      Sergeant score: <span className="font-bold">{link.suspect_detail?.sergeant_guilt_score ?? '—'}/10</span>
-                    </p>
-                    {link.suspect_detail?.captain_decision && (
-                      <p className="text-sm text-green-700 mt-1">Decision: {link.suspect_detail.captain_decision}</p>
-                    )}
-                  </div>
-                ))}
+              <div className="space-y-4 mb-4">
+                {suspects.map((link) => {
+                  const suspectId = link.suspect_detail?.id || link.suspect;
+                  const savedDecision = link.suspect_detail?.captain_decision;
+                  const draft = captainDecisions[suspectId] ?? '';
+                  return (
+                    <div key={link.id} className="border border-indigo-200 rounded-lg p-4 bg-white">
+                      <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name}</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Detective score: <span className="font-bold">{link.suspect_detail?.detective_guilt_score ?? '—'}/10</span> | 
+                        Sergeant score: <span className="font-bold">{link.suspect_detail?.sergeant_guilt_score ?? '—'}/10</span>
+                      </p>
+                      {savedDecision ? (
+                        <p className="text-sm text-green-700 mt-2">Decision (saved): {savedDecision}</p>
+                      ) : (
+                        <div className="mt-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Captain decision</label>
+                          <textarea
+                            value={draft}
+                            onChange={(e) => setCaptainDecisions({ ...captainDecisions, [suspectId]: e.target.value })}
+                            placeholder="Your decision and reasoning..."
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                            rows="3"
+                          />
+                          <button
+                            onClick={() => handleCaptainDecision(suspectId, draft)}
+                            disabled={actionLoading || !draft.trim()}
+                            className="mt-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition disabled:opacity-50"
+                          >
+                            {actionLoading ? 'Saving...' : 'Save decision'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <button
-              onClick={handleCaptainApprove}
-              disabled={actionLoading}
-              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
-            >
-              {actionLoading ? 'Processing...' : caseData.crime_severity === 0 ? 'Approve – Escalate to Chief' : 'Approve – Send to Trial'}
-            </button>
+            {suspects.length > 0 && (
+              <button
+                onClick={handleCaptainApprove}
+                disabled={actionLoading || !suspects.every((link) => (link.suspect_detail?.captain_decision || '').trim())}
+                className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+              >
+                {actionLoading ? 'Processing...' : caseData.crime_severity === 0 ? 'Approve – Escalate to Chief' : 'Approve – Send to Trial'}
+              </button>
+            )}
           </div>
         )}
 
@@ -611,31 +719,174 @@ const CaseDetailPage = () => {
           <div className="bg-rose-50 border border-rose-300 rounded-lg shadow p-6 mb-6">
             <h2 className="text-lg font-semibold text-rose-800 mb-3">Pending Chief Decision (Critical Case)</h2>
             <p className="text-rose-700 mb-4">
-              This is a critical-level case. Review captain's decision and approve to send to trial.
+              This is a critical-level case. Record your decision for each suspect, then approve to send to trial.
             </p>
             {suspects.length > 0 && (
               <div className="space-y-3 mb-4">
-                {suspects.map((link) => (
-                  <div key={link.id} className="border border-rose-200 rounded-lg p-4 bg-white">
-                    <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name}</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Detective: {link.suspect_detail?.detective_guilt_score ?? '—'}/10 | 
-                      Sergeant: {link.suspect_detail?.sergeant_guilt_score ?? '—'}/10
-                    </p>
-                    {link.suspect_detail?.captain_decision && (
-                      <p className="text-sm text-indigo-700 mt-1">Captain: {link.suspect_detail.captain_decision}</p>
-                    )}
+                {suspects.map((link) => {
+                  const suspectId = link.suspect_detail?.id || link.suspect;
+                  const savedDecision = link.suspect_detail?.chief_decision;
+                  const draft = chiefDecisions[suspectId] ?? '';
+                  return (
+                    <div key={link.id} className="border border-rose-200 rounded-lg p-4 bg-white">
+                      <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name}</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Detective: {link.suspect_detail?.detective_guilt_score ?? '—'}/10 | 
+                        Sergeant: {link.suspect_detail?.sergeant_guilt_score ?? '—'}/10
+                      </p>
+                      {link.suspect_detail?.captain_decision && (
+                        <p className="text-sm text-indigo-700 mt-1">Captain: {link.suspect_detail.captain_decision}</p>
+                      )}
+                      {savedDecision ? (
+                        <p className="text-sm text-green-700 mt-2">Chief decision: {savedDecision}</p>
+                      ) : (
+                        <div className="mt-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Chief decision</label>
+                          <textarea
+                            value={draft}
+                            onChange={(e) => setChiefDecisions({ ...chiefDecisions, [suspectId]: e.target.value })}
+                            placeholder="Your decision for this suspect..."
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-rose-500"
+                            rows="2"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleChiefDecision(suspectId, draft)}
+                            disabled={actionLoading || !draft.trim()}
+                            className="mt-2 bg-rose-600 hover:bg-rose-700 text-white py-1.5 px-4 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+                          >
+                            {actionLoading ? 'Saving...' : 'Save decision'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {suspects.length > 0 && (
+              <button
+                onClick={handleChiefApprove}
+                disabled={actionLoading || !suspects.every((link) => (link.suspect_detail?.chief_decision || '').trim())}
+                className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+              >
+                {actionLoading ? 'Processing...' : 'Approve – Send to Trial'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Trial phase: create trial or link to trial */}
+        {caseData.status === 'trial' && (
+          <div className="bg-cyan-50 border border-cyan-300 rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-cyan-800 mb-3">Trial</h2>
+            <p className="text-cyan-700 mb-4">
+              This case is in trial. Create a trial record or open an existing one to view the full report, issue a verdict, and record sentences.
+            </p>
+            {trialsForCase.length > 0 ? (
+              <div className="space-y-3 mb-4">
+                {trialsForCase.map((t) => (
+                  <div key={t.id} className="border border-cyan-200 rounded-lg p-4 bg-white flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        Trial #{t.id} — {t.scheduled_date ? new Date(t.scheduled_date).toLocaleString() : 'Scheduled'}
+                      </p>
+                      {t.judge && (
+                        <p className="text-sm text-gray-600">
+                          Judge: {[t.judge.first_name, t.judge.last_name].filter(Boolean).join(' ') || t.judge.username}
+                        </p>
+                      )}
+                      {t.verdict && (
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold bg-cyan-100 text-cyan-800">
+                          Verdict: {t.verdict.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
+                    <Link
+                      to={`/trials/${t.id}`}
+                      className="bg-cyan-600 hover:bg-cyan-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition"
+                    >
+                      Open trial
+                    </Link>
                   </div>
                 ))}
               </div>
+            ) : null}
+            {(isJudge || user?.is_staff) && !showCreateTrial && (
+              <button
+                type="button"
+                onClick={() => setShowCreateTrial(true)}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white py-2 px-6 rounded-lg font-semibold transition"
+              >
+                Create trial
+              </button>
             )}
-            <button
-              onClick={handleChiefApprove}
-              disabled={actionLoading}
-              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
-            >
-              {actionLoading ? 'Processing...' : 'Approve – Send to Trial'}
-            </button>
+            {showCreateTrial && (isJudge || user?.is_staff) && (
+              <form onSubmit={handleCreateTrial} className="mt-4 p-4 border border-cyan-200 rounded-lg bg-white">
+                <h3 className="font-semibold text-gray-900 mb-3">New trial</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled date *</label>
+                    <input
+                      type="datetime-local"
+                      value={trialForm.scheduled_date}
+                      onChange={(e) => setTrialForm({ ...trialForm, scheduled_date: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Judge</label>
+                    <input
+                      type="number"
+                      placeholder={user?.id ? `Current user (${user.id})` : 'Judge ID'}
+                      value={trialForm.judge_id || ''}
+                      onChange={(e) => setTrialForm({ ...trialForm, judge_id: e.target.value || user?.id })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    {user?.id && (
+                      <p className="text-xs text-gray-500 mt-1">Leave empty to use yourself ({user.id})</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Court name</label>
+                    <input
+                      type="text"
+                      value={trialForm.court_name}
+                      onChange={(e) => setTrialForm({ ...trialForm, court_name: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Court room</label>
+                    <input
+                      type="text"
+                      value={trialForm.court_room}
+                      onChange={(e) => setTrialForm({ ...trialForm, court_room: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={actionLoading || !trialForm.scheduled_date}
+                    className="bg-cyan-600 hover:bg-cyan-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Creating...' : 'Create trial'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateTrial(false)}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-6 rounded-lg font-semibold transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         )}
 

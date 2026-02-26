@@ -5,6 +5,8 @@ import { logoutUser } from '../store/authSlice';
 
 const Navigation = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const userRoles = (user?.roles || user?.groups || []).map((r) => String(r).toLowerCase());
+  const showJudiciary = user?.is_staff || userRoles.includes('judge');
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -56,6 +58,11 @@ const Navigation = () => {
                 <Link to="/most-wanted" className="hover:text-blue-200 transition">
                   Most Wanted
                 </Link>
+                {showJudiciary && (
+                  <Link to="/judiciary" className="hover:text-blue-200 transition">
+                    Judiciary
+                  </Link>
+                )}
 
                 {/* User Menu */}
                 <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-blue-700">

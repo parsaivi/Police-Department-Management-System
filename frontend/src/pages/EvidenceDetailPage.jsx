@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import evidenceService from '../services/evidenceService';
 
 const EvidenceDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+  const userRoles = (user?.roles || user?.groups || []).map(r => r.toLowerCase());
+  
   const [evidence, setEvidence] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +26,19 @@ const EvidenceDetailPage = () => {
   const [attachmentDescription, setAttachmentDescription] = useState('');
   const [attachmentType, setAttachmentType] = useState('document');
 
+  // Role checks
+  const isCoroner = userRoles.includes('coroner') || userRoles.includes('coronary');
+  const isDetective = userRoles.includes('detective');
+  const isSergeant = userRoles.includes('sergeant');
+  const isCaptain = userRoles.includes('captain');
+  const isOfficer = userRoles.includes('police officer');
+  const isStaff = user?.is_staff || false;
+
+  // Combined permission checks
+  const canVerifyEvidence = isCoroner || isSergeant || isCaptain || isStaff || isOfficer;
+  const canAddLabResults = isCoroner || isStaff;
+  const canUploadAttachments = isDetective || isSergeant || isCaptain || isStaff;
+
   useEffect(() => {
     fetchEvidenceDetails();
   }, [id]);
@@ -31,17 +48,16 @@ const EvidenceDetailPage = () => {
       setLoading(true);
       setError(null);
       
-      // Fetch evidence details
-      console.log('Fetching evidence with ID:', id); // Debug log
+      console.log('Fetching evidence with ID:', id);
       const response = await evidenceService.getEvidenceById(id);
-      console.log('Evidence response:', response.data); // Debug log
+      console.log('Evidence response:', response.data);
       setEvidence(response.data);
 
       // Fetch attachments
       try {
-        console.log('Fetching attachments for evidence:', id); // Debug log
+        console.log('Fetching attachments for evidence:', id);
         const attachmentsResponse = await evidenceService.getAttachments(id);
-        console.log('Attachments response:', attachmentsResponse.data); // Debug log
+        console.log('Attachments response:', attachmentsResponse.data);
         setAttachments(attachmentsResponse.data || []);
       } catch (err) {
         console.error('Error fetching attachments:', err);
@@ -86,7 +102,6 @@ const EvidenceDetailPage = () => {
     setUploadProgress(0);
 
     try {
-      // Simulate progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => Math.min(prev + 10, 90));
       }, 200);
@@ -98,7 +113,6 @@ const EvidenceDetailPage = () => {
         description: attachmentDescription
       });
 
-      // Use uploadAttachment from your service
       await evidenceService.uploadAttachment(id, selectedFile, attachmentType, attachmentDescription);
       
       clearInterval(progressInterval);
@@ -121,6 +135,28 @@ const EvidenceDetailPage = () => {
       setError(err.response?.data?.detail || err.message || 'Failed to upload file');
     } finally {
       setUploadLoading(false);
+    }
+  };
+
+  const handleDownloadAttachment = async (attachment) => {
+    try {
+      // If the file URL is already a full URL, open it directly
+      if (attachment.file && attachment.file.startsWith('http')) {
+        window.open(attachment.file, '_blank');
+        return;
+      }
+      
+      // Otherwise, try to construct the URL
+      // This assumes your files are served from the media URL
+      const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+      const fileUrl = attachment.file?.startsWith('/') 
+        ? `${baseUrl}${attachment.file}`
+        : `${baseUrl}/media/${attachment.file}`;
+      
+      window.open(fileUrl, '_blank');
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Failed to download attachment');
     }
   };
 
@@ -215,6 +251,18 @@ const EvidenceDetailPage = () => {
     return icons[type] || '📎';
   };
 
+  // Helper function to get user display name
+  const getUserDisplayName = (user) => {
+    if (!user) return 'Unknown';
+    if (typeof user === 'string') return user;
+    if (typeof user === 'object') {
+      return user.first_name && user.last_name 
+        ? `${user.first_name} ${user.last_name}`
+        : user.username || user.email || 'Unknown';
+    }
+    return 'Unknown';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -261,9 +309,10 @@ const EvidenceDetailPage = () => {
             Back to Evidence List
           </button>
           
-          {/* Action Buttons based on evidence type and status */}
+          {/* Action Buttons based on evidence type and user roles */}
           <div className="flex space-x-3">
-            {evidence.evidence_type === 'biological' && (
+            {/* Lab Results - Only for Coroner on biological evidence */}
+            {evidence.evidence_type === 'biological' && canAddLabResults && (
               <button
                 onClick={handleAddLabResult}
                 className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-semibold"
@@ -271,26 +320,59 @@ const EvidenceDetailPage = () => {
                 Add Lab Result
               </button>
             )}
+            
+            {/* Verify/Reject - Only for Coroner (biological) or Sergeants/Captains/Staff (other evidence) */}
             {evidence.status === 'pending' && (
               <>
-                <button
-                  onClick={() => {
-                    setVerificationAction('verified');
-                    setShowVerificationModal(true);
-                  }}
-                  className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold"
-                >
-                  Verify Evidence
-                </button>
-                <button
-                  onClick={() => {
-                    setVerificationAction('rejected');
-                    setShowVerificationModal(true);
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold"
-                >
-                  Reject
-                </button>
+                {/* For biological evidence, only coroner can verify */}
+                {evidence.evidence_type === 'biological' ? (
+                  isCoroner && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setVerificationAction('verified');
+                          setShowVerificationModal(true);
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold"
+                      >
+                        Verify Evidence
+                      </button>
+                      <button
+                        onClick={() => {
+                          setVerificationAction('rejected');
+                          setShowVerificationModal(true);
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )
+                ) : (
+                  /* For non-biological evidence, sergeants/captains/staff can verify */
+                  (isSergeant || isCaptain || isStaff || isOfficer) && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setVerificationAction('verified');
+                          setShowVerificationModal(true);
+                        }}
+                        className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-semibold"
+                      >
+                        Verify Evidence
+                      </button>
+                      <button
+                        onClick={() => {
+                          setVerificationAction('rejected');
+                          setShowVerificationModal(true);
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )
+                )}
               </>
             )}
           </div>
@@ -505,7 +587,7 @@ const EvidenceDetailPage = () => {
                   <div>
                     <h3 className="text-sm font-medium text-gray-500 mb-1">Collected By</h3>
                     <p className="text-lg text-gray-900">
-                      {evidence.collected_by || 'Unknown'}
+                      {getUserDisplayName(evidence.collected_by)}
                     </p>
                   </div>
                   <div>
@@ -535,7 +617,9 @@ const EvidenceDetailPage = () => {
                             <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                               {key.replace(/_/g, ' ')}
                             </dt>
-                            <dd className="mt-1 text-sm text-gray-900">{value || '-'}</dd>
+                            <dd className="mt-1 text-sm text-gray-900">
+                              {typeof value === 'object' ? JSON.stringify(value) : String(value || '-')}
+                            </dd>
                           </div>
                         ))}
                       </dl>
@@ -551,7 +635,7 @@ const EvidenceDetailPage = () => {
                       <p className="text-gray-900 whitespace-pre-wrap">{evidence.lab_result}</p>
                       {evidence.verified_at && (
                         <p className="text-xs text-gray-500 mt-2">
-                          Verified by {evidence.verified_by || 'Unknown'} on{' '}
+                          Verified by {getUserDisplayName(evidence.verified_by)} on{' '}
                           {new Date(evidence.verified_at).toLocaleString()}
                         </p>
                       )}
@@ -564,7 +648,7 @@ const EvidenceDetailPage = () => {
                   <div className="border-t pt-4">
                     <h3 className="text-sm font-medium text-gray-500 mb-2">Verification</h3>
                     <p className="text-sm text-gray-600">
-                      Verified by {evidence.verified_by || 'Unknown'} on{' '}
+                      Verified by {getUserDisplayName(evidence.verified_by)} on{' '}
                       {new Date(evidence.verified_at).toLocaleString()}
                     </p>
                   </div>
@@ -575,24 +659,26 @@ const EvidenceDetailPage = () => {
             {/* Attachments Tab */}
             {activeTab === 'attachments' && (
               <div>
-                {/* Upload Button */}
-                <div className="mb-6">
-                  <button
-                    onClick={() => document.getElementById('file-input').click()}
-                    className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold flex items-center"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Upload Attachment
-                  </button>
-                  <input
-                    id="file-input"
-                    type="file"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                </div>
+                {/* Upload Button - Only show for users with permission */}
+                {canUploadAttachments && (
+                  <div className="mb-6">
+                    <button
+                      onClick={() => document.getElementById('file-input').click()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-semibold flex items-center"
+                    >
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Upload Attachment
+                    </button>
+                    <input
+                      id="file-input"
+                      type="file"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </div>
+                )}
 
                 {/* Attachments List */}
                 <div>
@@ -606,7 +692,9 @@ const EvidenceDetailPage = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                       </svg>
                       <p className="mt-2 text-sm text-gray-500">No attachments yet</p>
-                      <p className="text-xs text-gray-400 mt-1">Click the Upload button to add files</p>
+                      {canUploadAttachments && (
+                        <p className="text-xs text-gray-400 mt-1">Click the Upload button to add files</p>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-4">
@@ -636,7 +724,7 @@ const EvidenceDetailPage = () => {
                                 {attachment.uploaded_by && (
                                   <>
                                     <span>•</span>
-                                    <span>By {attachment.uploaded_by}</span>
+                                    <span>By {getUserDisplayName(attachment.uploaded_by)}</span>
                                   </>
                                 )}
                               </div>
@@ -644,27 +732,28 @@ const EvidenceDetailPage = () => {
                           </div>
                           <div className="flex items-center space-x-2 ml-4">
                             {attachment.file && (
-                              <a
-                                href={attachment.file}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                onClick={() => handleDownloadAttachment(attachment)}
                                 className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-full"
                                 title="Download/View"
                               >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                 </svg>
-                              </a>
+                              </button>
                             )}
-                            <button
-                              onClick={() => handleDeleteAttachment(attachment.id)}
-                              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full"
-                              title="Delete"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
+                            {/* Only show delete button for users with permission */}
+                            {canUploadAttachments && (
+                              <button
+                                onClick={() => handleDeleteAttachment(attachment.id)}
+                                className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-full"
+                                title="Delete"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}

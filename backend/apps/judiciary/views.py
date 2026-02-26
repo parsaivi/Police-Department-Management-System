@@ -22,7 +22,7 @@ class TrialViewSet(viewsets.ModelViewSet):
     queryset = Trial.objects.all()
     serializer_class = TrialSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ["judge", "verdict"]
+    filterset_fields = ["case", "judge", "verdict"]
     ordering_fields = ["scheduled_date", "created_at"]
 
     @action(detail=True, methods=["post"])

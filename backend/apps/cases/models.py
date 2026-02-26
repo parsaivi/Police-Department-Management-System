@@ -206,14 +206,7 @@ class Case(TimeStampedModel):
         Detective identifies primary suspects and notifies sergeant.
         Per doc: suspects enter 'under pursuit' from the moment they're identified.
         """
-        for link in self.suspect_links.select_related("suspect").all():
-            suspect = link.suspect
-            if suspect.status == "identified":
-                suspect.start_investigation()
-                suspect.save()
-            if suspect.status == "under_investigation":
-                suspect.mark_wanted()
-                suspect.save()
+        pass
 
     @transition(
         field=status,
@@ -225,14 +218,7 @@ class Case(TimeStampedModel):
         Sergeant approves suspects → arrest and interrogation begins.
         Suspects should already be under_pursuit from identify_suspect.
         """
-        for link in self.suspect_links.select_related("suspect").all():
-            suspect = link.suspect
-            if suspect.status == "under_pursuit":
-                suspect.arrest()
-                suspect.save()
-            elif suspect.status == "most_wanted":
-                suspect.arrest()
-                suspect.save()
+        pass
 
     @transition(
         field=status,

@@ -11,8 +11,8 @@ const getApiBaseUrl = () => {
     const port = window.location.port;
     
     // Map frontend port to backend port
-    // Frontend 3000 -> Backend 8000, Frontend 3001 -> Backend 8001
-    const backendPort = port === '3000' ? '8000' : port === '3001' ? '8001' : '8001';
+    // Frontend 3001 -> Backend 8001, Frontend 3001 -> Backend 8001
+    const backendPort = port === '3001' ? '8001' : port === '3001' ? '8001' : '8001';
     
     return `http://${hostname}:${backendPort}/api/v1`;
   }

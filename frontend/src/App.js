@@ -25,6 +25,8 @@ import ComplaintDetailPage from './pages/ComplaintDetailPage';
 import SuspectDetailPage from './pages/SuspectDetailPage';
 import EvidencePage from './pages/EvidencePage';
 import EvidenceDetailPage from './pages/EvidenceDetailPage';
+import TrialsListPage from './pages/TrialsListPage';
+import TrialDetailPage from './pages/TrialDetailPage';
 
 function App() {
   return (
@@ -144,7 +146,23 @@ function App() {
                 </PrivateRoute>
               }
             />
-	   <Route path="/evidence/:id" element={<EvidenceDetailPage />} />
+            <Route path="/evidence/:id" element={<EvidenceDetailPage />} />
+            <Route
+              path="/judiciary"
+              element={
+                <PrivateRoute>
+                  <TrialsListPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/trials/:trialId"
+              element={
+                <PrivateRoute>
+                  <TrialDetailPage />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/admin"
               element={

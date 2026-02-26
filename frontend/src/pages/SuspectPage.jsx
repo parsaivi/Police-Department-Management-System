@@ -103,7 +103,7 @@ const SuspectPage = () => {
             >
               <option value="all">All Suspects</option>
               <option value="under_investigation">Under Investigation</option>
-              <option value="under_pursuit">Wanted</option>
+              <option value="under_pursuit">Under Pursuit</option>
               <option value="most_wanted">Most Wanted</option>
               <option value="arrested">Arrested</option>
             </select>

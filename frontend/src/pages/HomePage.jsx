@@ -7,6 +7,8 @@ const HomePage = () => {
     total_solved_cases: 0,
     total_staff: 0,
     active_cases: 0,
+    wanted_suspects: 0,
+    pending_complaints: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,6 +25,8 @@ const HomePage = () => {
         total_solved_cases: response.data.total_solved_cases || 0,
         total_staff: response.data.total_staff || 0,
         active_cases: response.data.active_cases || 0,
+        wanted_suspects: response.data.wanted_suspects || 0,
+        pending_complaints: response.data.pending_complaints || 0,
       });
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to fetch statistics');
@@ -52,33 +56,7 @@ const HomePage = () => {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          {/* Solved Cases Card */}
-          <div className="bg-white rounded-lg shadow-lg p-8 transform hover:scale-105 transition">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-semibold uppercase">Solved Cases</p>
-                <p className="text-4xl font-bold text-blue-900 mt-2">
-                  {loading ? '...' : stats.total_solved_cases}
-                </p>
-              </div>
-              <div className="text-5xl text-green-500 opacity-20">✓</div>
-            </div>
-          </div>
-
-          {/* Total Staff Card */}
-          <div className="bg-white rounded-lg shadow-lg p-8 transform hover:scale-105 transition">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-semibold uppercase">Total Staff</p>
-                <p className="text-4xl font-bold text-blue-900 mt-2">
-                  {loading ? '...' : stats.total_staff}
-                </p>
-              </div>
-              <div className="text-5xl text-blue-500 opacity-20">👥</div>
-            </div>
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-12">
           {/* Active Cases Card */}
           <div className="bg-white rounded-lg shadow-lg p-8 transform hover:scale-105 transition">
             <div className="flex items-center justify-between">
@@ -89,6 +67,58 @@ const HomePage = () => {
                 </p>
               </div>
               <div className="text-5xl text-yellow-500 opacity-20">📋</div>
+            </div>
+          </div>
+
+          {/* Solved Cases Card */}
+          <div className="bg-white rounded-lg shadow-lg p-8 transform hover:scale-105 transition">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-semibold uppercase">Solved Cases</p>
+                <p className="text-4xl font-bold text-green-900 mt-2">
+                  {loading ? '...' : stats.total_solved_cases}
+                </p>
+              </div>
+              <div className="text-5xl text-green-500 opacity-20">✓</div>
+            </div>
+          </div>
+
+          {/* Total Personnel Card */}
+          <div className="bg-white rounded-lg shadow-lg p-8 transform hover:scale-105 transition">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-semibold uppercase">Total Personnel</p>
+                <p className="text-4xl font-bold text-purple-900 mt-2">
+                  {loading ? '...' : stats.total_staff}
+                </p>
+              </div>
+              <div className="text-5xl text-blue-500 opacity-20">👥</div>
+            </div>
+          </div>
+
+          {/* Wanted Suspects Card */}
+          <div className="bg-white rounded-lg shadow-lg p-8 transform hover:scale-105 transition">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-semibold uppercase">Wanted Suspects</p>
+                <p className="text-4xl font-bold text-red-900 mt-2">
+                  {loading ? '...' : stats.wanted_suspects}
+                </p>
+              </div>
+              <div className="text-5xl text-red-500 opacity-20">🚨</div>
+            </div>
+          </div>
+
+          {/* Pending Complaints Card */}
+          <div className="bg-white rounded-lg shadow-lg p-8 transform hover:scale-105 transition">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-semibold uppercase">Pending Complaints</p>
+                <p className="text-4xl font-bold text-yellow-900 mt-2">
+                  {loading ? '...' : stats.pending_complaints}
+                </p>
+              </div>
+              <div className="text-5xl text-yellow-500 opacity-20">📝</div>
             </div>
           </div>
         </div>

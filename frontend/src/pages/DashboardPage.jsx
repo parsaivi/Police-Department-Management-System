@@ -3,6 +3,57 @@ import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import statsService from '../services/statsService';
 
+// Skeleton Components
+const HeaderSkeleton = () => (
+  <div className="bg-gradient-to-r from-blue-900 to-blue-700 p-8 shadow-lg">
+    <div className="h-10 w-64 bg-blue-800 rounded animate-pulse mb-2"></div>
+    <div className="h-5 w-48 bg-blue-800 rounded animate-pulse"></div>
+  </div>
+);
+
+const StatsCardSkeleton = () => (
+  <div className="bg-white rounded-lg shadow p-6">
+    <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-2"></div>
+    <div className="h-8 w-16 bg-gray-300 rounded animate-pulse"></div>
+  </div>
+);
+
+const ModuleCardSkeleton = () => (
+  <div className="bg-white rounded-lg shadow p-6">
+    <div className="h-12 w-12 bg-gray-200 rounded animate-pulse mb-4"></div>
+    <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-2"></div>
+    <div className="h-4 w-full bg-gray-100 rounded animate-pulse"></div>
+    <div className="h-4 w-3/4 bg-gray-100 rounded animate-pulse mt-2"></div>
+  </div>
+);
+
+const DashboardSkeleton = () => (
+  <>
+    <HeaderSkeleton />
+    <div className="max-w-7xl mx-auto px-8 py-8">
+      {/* Stats Skeletons */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <StatsCardSkeleton />
+        <StatsCardSkeleton />
+        <StatsCardSkeleton />
+      </div>
+
+      {/* Module Grid Skeletons */}
+      <div>
+        <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-6"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <ModuleCardSkeleton />
+          <ModuleCardSkeleton />
+          <ModuleCardSkeleton />
+          <ModuleCardSkeleton />
+          <ModuleCardSkeleton />
+          <ModuleCardSkeleton />
+        </div>
+      </div>
+    </div>
+  </>
+);
+
 const DashboardPage = () => {
   const { user } = useSelector((state) => state.auth);
   const [modules, setModules] = useState([]);
@@ -19,8 +70,6 @@ const DashboardPage = () => {
       setStats(response.data);
 
       // Build available modules based on user roles
-      // Backend returns roles as array of display names (e.g. "Police Officer")
-      // Normalize to lowercase for comparison
       const userRoles = (user?.roles || user?.groups || []).map(r => r.toLowerCase());
       const availableModules = [];
 
@@ -32,17 +81,6 @@ const DashboardPage = () => {
         description: 'View and manage cases',
         link: '/cases',
       });
-
-      // Role-based modules
-      if (userRoles.includes('cadet') || userRoles.includes('police officer')) {
-        availableModules.push({
-          id: 'complaints',
-          title: 'Complaints Review',
-          icon: '📝',
-          description: 'Review and process complaints',
-          link: '/complaints',
-        });
-      }
 
       if (userRoles.includes('detective') || userRoles.includes('sergeant')) {
         availableModules.push({
@@ -64,7 +102,7 @@ const DashboardPage = () => {
         });
       }
 
-      if (userRoles.includes('detective') || userRoles.includes('sergeant')) {
+      if (userRoles.includes('detective')) {
         availableModules.push({
           id: 'detective_board',
           title: 'Detective Board',
@@ -74,7 +112,9 @@ const DashboardPage = () => {
         });
       }
 
-      if (userRoles.includes('sergeant') || userRoles.includes('police officer') || userRoles.includes('patrol officer')) {
+      if (userRoles.includes('sergeant') || userRoles.includes('police officer') || userRoles.includes('patrol officer') ||
+          userRoles.includes('detective') || userRoles.includes('coronary')
+      ) {
         availableModules.push({
           id: 'evidence',
           title: 'Evidence Management',
@@ -104,11 +144,8 @@ const DashboardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
+      <div className="min-h-screen bg-gray-100">
+        <DashboardSkeleton />
       </div>
     );
   }

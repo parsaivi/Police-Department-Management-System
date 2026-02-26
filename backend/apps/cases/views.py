@@ -204,7 +204,7 @@ class CaseViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def approve_suspects(self, request, pk=None):
-        """Sergeant approves identified suspects → arrest begins."""
+        """Sergeant approves identified suspects → they move from identified to under pursuit."""
         user_roles = request.user.get_roles()
         if not request.user.is_staff and "Sergeant" not in user_roles:
             return Response(
@@ -213,14 +213,12 @@ class CaseViewSet(viewsets.ModelViewSet):
             )
         
         case = self.get_object()
-        from_status = case.status
         
         try:
-            case.start_interrogation()
-            case.save()
+            case.approve_suspects_for_pursuit()
             self._log_transition(
-                case, from_status, case.status, request.user,
-                "Sergeant approved suspects – arrest authorized"
+                case, case.status, case.status, request.user,
+                "Sergeant approved suspects – under pursuit (arrest when captured)"
             )
             return Response(CaseSerializer(case, context={"request": request}).data)
         except Exception as e:

@@ -45,6 +45,8 @@ export const suspectService = {
 
   // Link suspect to case
   linkToCase: (id, data) => api.post(`/suspects/${id}/link_to_case/`, data),
+
+  deleteSuspect: (suspectId) => api.delete(`/suspects/${suspectId}/`),
 };
 
 export default suspectService;

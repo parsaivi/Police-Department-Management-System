@@ -487,7 +487,7 @@ const ComplaintDetailPage = () => {
 
             {/* No actions available */}
             {!(
-              (isComplainant && (complaint.status === 'draft' || complaint.status === 'invalidated')) ||
+              (isComplainant && (complaint.status === 'draft' || complaint.status === 'returned')) ||
               ((isOfficer || isAdmin) && complaint.status === 'submitted') ||
               (isCadet && (complaint.status === 'cadet_review' || complaint.status === 'returned_to_cadet')) ||
               (isOfficer && complaint.status === 'officer_review')

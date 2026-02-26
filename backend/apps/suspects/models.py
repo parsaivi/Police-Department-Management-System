@@ -154,6 +154,18 @@ class Suspect(TimeStampedModel):
 
     @transition(
         field=status,
+        source=SuspectStatus.IDENTIFIED,
+        target=SuspectStatus.UNDER_PURSUIT
+    )
+    def authorize_pursuit(self):
+        """Sergeant approved suspect → move from identified to under pursuit (wanted)."""
+        self.wanted_since = timezone.now()
+        if self.user:
+            self.user.is_suspect = True
+            self.user.save()
+
+    @transition(
+        field=status,
         source=SuspectStatus.UNDER_INVESTIGATION,
         target=SuspectStatus.UNDER_PURSUIT
     )
@@ -176,7 +188,6 @@ class Suspect(TimeStampedModel):
     @transition(
         field=status,
         source=[
-            SuspectStatus.UNDER_INVESTIGATION,
             SuspectStatus.UNDER_PURSUIT,
             SuspectStatus.MOST_WANTED,
         ],

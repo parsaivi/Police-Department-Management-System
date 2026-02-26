@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import * as htmlToImage from 'html-to-image';
 import { useParams, useNavigate } from 'react-router-dom';
 import casesService from '../services/casesService';
 
@@ -8,13 +9,15 @@ const DetectiveBoardPage = () => {
 
   const [board, setBoard] = useState({ notes: [], connections: [], evidence_items: [] });
   const [newNote, setNewNote] = useState('');
-  const [newConnection, setNewConnection] = useState({ from: 0, to: 1, type: 'related' });
+  const [newConnection, setNewConnection] = useState({ from: '', to: '', type: 'related' });
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [pickLoading, setPickLoading] = useState(false);
   const [pickCases, setPickCases] = useState([]);
   const [error, setError] = useState(null);
   const canvasRef = useRef(null);
+  const boardContainerRef = useRef(null);
   const draggingRef = useRef(null);
 
   useEffect(() => {
@@ -119,7 +122,13 @@ const DetectiveBoardPage = () => {
   };
 
   const handleAddConnection = async () => {
-    if (newConnection.from === newConnection.to) {
+    const fromId = newConnection.from === '' || newConnection.from == null ? null : Number(newConnection.from);
+    const toId = newConnection.to === '' || newConnection.to == null ? null : Number(newConnection.to);
+    if (fromId == null || toId == null) {
+      setError('Select both notes to connect');
+      return;
+    }
+    if (fromId === toId) {
       setError('Cannot connect note to itself');
       return;
     }
@@ -131,15 +140,20 @@ const DetectiveBoardPage = () => {
           ...board.connections,
           {
             id: Date.now(),
-            from: parseInt(newConnection.from),
-            to: parseInt(newConnection.to),
+            from: fromId,
+            to: toId,
             type: newConnection.type,
           },
         ],
       };
       await casesService.updateDetectiveBoard(caseId, updatedBoard);
       setBoard(updatedBoard);
-      setNewConnection({ from: 0, to: 1, type: 'related' });
+      const firstTwo = board.notes.slice(0, 2).map((n) => n.id);
+      setNewConnection({
+        from: firstTwo[0] ?? '',
+        to: firstTwo[1] ?? firstTwo[0] ?? '',
+        type: 'related',
+      });
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to add connection');
     }
@@ -171,6 +185,27 @@ const DetectiveBoardPage = () => {
       setBoard(updatedBoard);
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to delete connection');
+    }
+  };
+
+  const handleExportImage = async () => {
+    if (!boardContainerRef.current) return;
+    setExporting(true);
+    setError(null);
+    try {
+      const dataUrl = await htmlToImage.toPng(boardContainerRef.current, {
+        backgroundColor: '#f9fafb',
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+      const link = document.createElement('a');
+      link.download = `detective-board-case-${caseId}-${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      setError(err?.message || 'Failed to export board as image');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -241,7 +276,24 @@ const DetectiveBoardPage = () => {
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <h1 className="text-4xl font-bold text-gray-900 mb-8">Detective Board</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+          <h1 className="text-4xl font-bold text-gray-900">Detective Board</h1>
+          <button
+            type="button"
+            onClick={handleExportImage}
+            disabled={exporting || (board.notes.length === 0 && board.connections.length === 0)}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition flex items-center gap-2"
+          >
+            {exporting ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Exporting...
+              </>
+            ) : (
+              <>📷 Export board as image</>
+            )}
+          </button>
+        </div>
 
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
@@ -286,9 +338,11 @@ const DetectiveBoardPage = () => {
                       }
                       className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                     >
-                      {board.notes.map((note, idx) => (
-                        <option key={note.id} value={idx}>
-                          Note {idx + 1}
+                      <option value="">Select note</option>
+                      {board.notes.map((note) => (
+                        <option key={note.id} value={note.id}>
+                          {note.content.substring(0, 40)}
+                          {note.content.length > 40 ? '...' : ''}
                         </option>
                       ))}
                     </select>
@@ -304,9 +358,11 @@ const DetectiveBoardPage = () => {
                       }
                       className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                     >
-                      {board.notes.map((note, idx) => (
-                        <option key={note.id} value={idx}>
-                          Note {idx + 1}
+                      <option value="">Select note</option>
+                      {board.notes.map((note) => (
+                        <option key={note.id} value={note.id}>
+                          {note.content.substring(0, 40)}
+                          {note.content.length > 40 ? '...' : ''}
                         </option>
                       ))}
                     </select>
@@ -381,22 +437,28 @@ const DetectiveBoardPage = () => {
                 <div>
                   <h3 className="text-lg font-bold text-gray-900 mb-4">Connections</h3>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {board.connections.map((conn) => (
-                      <div
-                        key={conn.id}
-                        className="flex justify-between items-center bg-gray-100 p-2 rounded text-sm"
-                      >
-                        <span className="text-gray-700">
-                          {conn.type.toUpperCase()}
-                        </span>
-                        <button
-                          onClick={() => handleDeleteConnection(conn.id)}
-                          className="text-red-600 hover:text-red-700 font-semibold"
+                    {board.connections.map((conn) => {
+                      const fromN = board.notes.find((n) => n.id === conn.from);
+                      const toN = board.notes.find((n) => n.id === conn.to);
+                      const fromLabel = fromN?.content?.substring(0, 20) ?? `#${conn.from}`;
+                      const toLabel = toN?.content?.substring(0, 20) ?? `#${conn.to}`;
+                      return (
+                        <div
+                          key={conn.id}
+                          className="flex justify-between items-center bg-gray-100 p-2 rounded text-sm"
                         >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
+                          <span className="text-gray-700 truncate flex-1 min-w-0" title={`${fromLabel} → ${toLabel}`}>
+                            {fromLabel} → {toLabel} ({conn.type})
+                          </span>
+                          <button
+                            onClick={() => handleDeleteConnection(conn.id)}
+                            className="text-red-600 hover:text-red-700 font-semibold shrink-0 ml-1"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -407,6 +469,7 @@ const DetectiveBoardPage = () => {
           <div className="lg:col-span-3">
             <div className="bg-white rounded-lg shadow p-6">
               <div
+                ref={boardContainerRef}
                 className="relative bg-gray-50 rounded-lg p-6 min-h-screen border-2 border-dashed border-gray-300"
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -418,8 +481,10 @@ const DetectiveBoardPage = () => {
                   style={{ zIndex: 0 }}
                 >
                   {board.connections.map((conn) => {
-                    const fromNote = board.notes[conn.from];
-                    const toNote = board.notes[conn.to];
+                    const fromNote =
+                      board.notes.find((n) => n.id === conn.from) ?? board.notes[conn.from];
+                    const toNote =
+                      board.notes.find((n) => n.id === conn.to) ?? board.notes[conn.to];
                     if (!fromNote || !toNote) return null;
 
                     const x1 = (fromNote.x || 0) + 60;

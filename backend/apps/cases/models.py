@@ -204,14 +204,21 @@ class Case(TimeStampedModel):
     )
     def identify_suspect(self):
         """
-        Detective identifies primary suspects and notifies sergeant.
-        Suspects move to UNDER_INVESTIGATION only. They become UNDER_PURSUIT
-        only after sergeant approves (in start_interrogation → arrest).
+        Detective identifies primary suspects and submits case for sergeant approval.
+        Suspects remain IDENTIFIED until sergeant approves (then → UNDER_PURSUIT),
+        and arrest happens only when someone uses the arrest action.
+        """
+        pass
+
+    def approve_suspects_for_pursuit(self):
+        """
+        Sergeant approved identified suspects → move them from IDENTIFIED to UNDER_PURSUIT.
+        Called from approve_suspects view; case status stays SUSPECT_IDENTIFIED.
         """
         for link in self.suspect_links.select_related("suspect").all():
             suspect = link.suspect
             if suspect.status == SuspectStatus.IDENTIFIED:
-                suspect.start_investigation()
+                suspect.authorize_pursuit()
                 suspect.save()
 
     @transition(
@@ -221,18 +228,10 @@ class Case(TimeStampedModel):
     )
     def start_interrogation(self):
         """
-        Sergeant approves suspects → arrest and interrogation begins.
-        Suspects (under_investigation or under_pursuit/most_wanted) are arrested.
+        Start interrogation phase. Suspects remain under_pursuit until
+        someone records arrest via the arrest action (button).
         """
-        for link in self.suspect_links.select_related("suspect").all():
-            suspect = link.suspect
-            if suspect.status in (
-                SuspectStatus.UNDER_INVESTIGATION,
-                SuspectStatus.UNDER_PURSUIT,
-                SuspectStatus.MOST_WANTED,
-            ):
-                suspect.arrest()
-                suspect.save()
+        pass
 
     @transition(
         field=status,

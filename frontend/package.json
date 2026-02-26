@@ -10,6 +10,7 @@
     "@testing-library/user-event": "^13.5.0",
     "autoprefixer": "^10.4.23",
     "axios": "^1.13.4",
+    "html-to-image": "^1.11.13",
     "postcss": "^8.5.6",
     "react": "^19.2.4",
     "react-dnd": "^16.0.1",

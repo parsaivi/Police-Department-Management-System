@@ -22,7 +22,7 @@ class SentenceSerializer(serializers.ModelSerializer):
             "title", "description", "duration_days", "fine_amount",
             "created_at",
         ]
-        read_only_fields = ["issued_by"]
+        read_only_fields = ["issued_by", "trial"]
 
 
 class TrialSerializer(serializers.ModelSerializer):

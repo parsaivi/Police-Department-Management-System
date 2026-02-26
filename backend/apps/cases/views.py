@@ -56,10 +56,11 @@ class CaseViewSet(viewsets.ModelViewSet):
         if any(role in self.APPROVAL_ROLES for role in user_roles):
             q |= models.Q(status=CaseStatus.PENDING_APPROVAL)
         
-        # Sergeant can see suspect_identified cases (to approve/reject suspects)
+        # Sergeant can see suspect_identified (approve/reject) and interrogation (score suspects)
         if "Sergeant" in user_roles:
             q |= models.Q(status=CaseStatus.SUSPECT_IDENTIFIED)
-        
+            q |= models.Q(status=CaseStatus.INTERROGATION)
+
         # Captain can see cases pending their decision and interrogation cases
         if "Captain" in user_roles:
             q |= models.Q(status=CaseStatus.PENDING_CAPTAIN)
@@ -73,11 +74,11 @@ class CaseViewSet(viewsets.ModelViewSet):
         if "Judge" in user_roles:
             q |= models.Q(status=CaseStatus.TRIAL)
 
-        # Detectives can see created cases (to pick them up for investigation)
-        # Their own investigation cases are already visible via lead_detective=user
+        # Detectives can see created cases, their investigation cases, and their interrogation cases (to score and submit to captain)
         if "Detective" in user_roles:
             q |= models.Q(status=CaseStatus.CREATED)
             q |= (models.Q(status=CaseStatus.INVESTIGATION) & models.Q(lead_detective=user))
+            q |= (models.Q(status=CaseStatus.INTERROGATION) & models.Q(lead_detective=user))
         
         return Case.objects.filter(q).distinct()
 

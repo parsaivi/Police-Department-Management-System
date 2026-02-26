@@ -102,8 +102,14 @@ const TrialDetailPage = () => {
       });
       setSentenceForm({ suspect_id: '', title: '', description: '', duration_days: '', fine_amount: '' });
       await fetchTrial();
-    } catch (err) {
-      setError(err.response?.data?.error || err.response?.data?.detail || 'Failed to add sentence');
+    } catch (err)  {
+      const data = err.response?.data;
+      const msg =
+        data?.error ||
+        data?.detail ||
+        (data && typeof data === 'object' ? JSON.stringify(data) : null) ||
+        'Failed to add sentence';
+      setError(msg);
     } finally {
       setActionLoading(false);
     }

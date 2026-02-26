@@ -4,6 +4,8 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from apps.suspects.models import CaseSuspect
+from apps.cases.models import CaseStatus
 
 from apps.cases.models import Case
 from .models import CaseSuspect, Interrogation, Suspect, SuspectStatus
@@ -37,7 +39,6 @@ class SuspectViewSet(viewsets.ModelViewSet):
 
         # Detectives see suspects from their cases
         if "Detective" in user_roles:
-            from apps.suspects.models import CaseSuspect
             suspect_ids = CaseSuspect.objects.filter(
                 case__lead_detective=user
             ).values_list("suspect_id", flat=True)
@@ -47,8 +48,6 @@ class SuspectViewSet(viewsets.ModelViewSet):
 
         # Sergeant sees suspects from cases in suspect_identified status
         if "Sergeant" in user_roles:
-            from apps.suspects.models import CaseSuspect
-            from apps.cases.models import CaseStatus
             suspect_ids = CaseSuspect.objects.filter(
                 case__status__in=[CaseStatus.SUSPECT_IDENTIFIED, CaseStatus.INTERROGATION]
             ).values_list("suspect_id", flat=True)
@@ -56,7 +55,6 @@ class SuspectViewSet(viewsets.ModelViewSet):
 
         # Captain sees suspects from cases pending captain decision
         if "Captain" in user_roles:
-            from apps.cases.models import CaseStatus
             suspect_ids = CaseSuspect.objects.filter(
                 case__status__in=[CaseStatus.INTERROGATION, CaseStatus.PENDING_CAPTAIN]
             ).values_list("suspect_id", flat=True)
@@ -64,7 +62,6 @@ class SuspectViewSet(viewsets.ModelViewSet):
 
         # Chief sees suspects from critical cases pending chief decision
         if "Chief" in user_roles:
-            from apps.cases.models import CaseStatus
             suspect_ids = CaseSuspect.objects.filter(
                 case__status=CaseStatus.PENDING_CHIEF
             ).values_list("suspect_id", flat=True)

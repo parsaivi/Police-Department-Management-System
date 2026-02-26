@@ -311,16 +311,6 @@ const EvidenceDetailPage = () => {
           
           {/* Action Buttons based on evidence type and user roles */}
           <div className="flex space-x-3">
-            {/* Lab Results - Only for Coroner on biological evidence */}
-            {evidence.evidence_type === 'biological' && canAddLabResults && (
-              <button
-                onClick={handleAddLabResult}
-                className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg font-semibold"
-              >
-                Add Lab Result
-              </button>
-            )}
-            
             {/* Verify/Reject - Only for Coroner (biological) or Sergeants/Captains/Staff (other evidence) */}
             {evidence.status === 'pending' && (
               <>

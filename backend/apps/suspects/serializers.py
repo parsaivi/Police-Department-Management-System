@@ -25,6 +25,10 @@ class CaseSuspectSerializer(serializers.ModelSerializer):
             "aliases": obj.suspect.aliases,
             "status": obj.suspect.status,
             "description": obj.suspect.description,
+            "detective_guilt_score": obj.suspect.detective_guilt_score,
+            "sergeant_guilt_score": obj.suspect.sergeant_guilt_score,
+            "captain_decision": obj.suspect.captain_decision or "",
+            "chief_decision": obj.suspect.chief_decision or "",
         }
 
 

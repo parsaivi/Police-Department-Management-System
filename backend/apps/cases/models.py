@@ -4,6 +4,7 @@ from django.db import models
 from django_fsm import FSMField, transition
 
 from apps.common.models import TimeStampedModel, CrimeSeverity
+from apps.suspects.models import SuspectStatus
 
 
 class CaseStatus(models.TextChoices):
@@ -204,9 +205,14 @@ class Case(TimeStampedModel):
     def identify_suspect(self):
         """
         Detective identifies primary suspects and notifies sergeant.
-        Per doc: suspects enter 'under pursuit' from the moment they're identified.
+        Suspects move to UNDER_INVESTIGATION only. They become UNDER_PURSUIT
+        only after sergeant approves (in start_interrogation → arrest).
         """
-        pass
+        for link in self.suspect_links.select_related("suspect").all():
+            suspect = link.suspect
+            if suspect.status == SuspectStatus.IDENTIFIED:
+                suspect.start_investigation()
+                suspect.save()
 
     @transition(
         field=status,
@@ -216,9 +222,17 @@ class Case(TimeStampedModel):
     def start_interrogation(self):
         """
         Sergeant approves suspects → arrest and interrogation begins.
-        Suspects should already be under_pursuit from identify_suspect.
+        Suspects (under_investigation or under_pursuit/most_wanted) are arrested.
         """
-        pass
+        for link in self.suspect_links.select_related("suspect").all():
+            suspect = link.suspect
+            if suspect.status in (
+                SuspectStatus.UNDER_INVESTIGATION,
+                SuspectStatus.UNDER_PURSUIT,
+                SuspectStatus.MOST_WANTED,
+            ):
+                suspect.arrest()
+                suspect.save()
 
     @transition(
         field=status,

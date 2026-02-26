@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import suspectService from '../services/suspectService';
+import { useSelector } from 'react-redux';
 
 const SuspectDetailPage = () => {
   const { suspectId } = useParams();
@@ -24,10 +25,24 @@ const SuspectDetailPage = () => {
     }
   };
 
+  const handleArrest = async () => {
+    try {
+      setError(null);
+      await suspectService.arrest(suspectId);
+      fetchSuspect();
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.detail || 'Failed to arrest suspect');
+    }
+  };
+  const { user } = useSelector((state) => state.auth);
+  const userRoles = (user?.roles || user?.groups || []).map(r => String(r).toLowerCase());
+  const isSergeant = user?.is_staff || userRoles.includes('sergeant');
+
+
   const getStatusColor = (status) => {
     const colors = {
       under_investigation: 'bg-blue-100 text-blue-800',
-      wanted: 'bg-orange-100 text-orange-800',
+      under_pursuit: 'bg-orange-100 text-orange-800',
       most_wanted: 'bg-red-100 text-red-800',
       arrested: 'bg-gray-100 text-gray-800',
       cleared: 'bg-green-100 text-green-800',
@@ -52,7 +67,7 @@ const SuspectDetailPage = () => {
         <div className="max-w-7xl mx-auto">
           <Link
             to="/suspects"
-            className="text-blue-600 hover:text-blue-700 font-semibold"
+           className="text-blue-600 hover:text-blue-700 font-semibold"
           >
             ← Back to Suspects
           </Link>
@@ -135,10 +150,10 @@ const SuspectDetailPage = () => {
             </p>
           </div>
           <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-sm font-semibold text-gray-600">MOST WANTED RANK</p>
+            <p className="text-sm font-semibold text-gray-600">Wanted Score</p>
             <p className="text-lg font-bold text-red-600 mt-1">
               {suspect.most_wanted_rank
-                ? `#${suspect.most_wanted_rank}`
+                ? `${suspect.most_wanted_rank}`
                 : 'N/A'}
             </p>
           </div>
@@ -162,13 +177,22 @@ const SuspectDetailPage = () => {
               </p>
             </div>
           )}
-          {suspect.arrested_at && (
+          {suspect.arrested_at ? (
             <div className="bg-white rounded-lg shadow p-6">
               <p className="text-sm font-semibold text-gray-600">ARRESTED AT</p>
               <p className="text-lg font-bold text-gray-900 mt-1">
                 {new Date(suspect.arrested_at).toLocaleDateString()}
               </p>
             </div>
+          ) : (
+            isSergeant && suspect.status !== 'arrested' && (
+              <button
+                onClick={handleArrest}
+                className="ml-4 bg-gray-900 text-white px-4 py-2 rounded"
+              >
+                Arrest
+              </button>
+            )
           )}
         </div>
 
@@ -282,7 +306,7 @@ const SuspectDetailPage = () => {
                         {link.notes || '—'}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {link.added_by || '—'}
+                        {link.added_by?.username || '—'}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {link.created_at
@@ -351,7 +375,7 @@ const SuspectDetailPage = () => {
                         </Link>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {interr.conducted_by || '—'}
+                        {interr.conducted_by?.username || '—'}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
                         {interr.location || '—'}

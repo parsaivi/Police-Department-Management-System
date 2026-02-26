@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import casesService from '../services/casesService';
+import suspectService from '../services/suspectService';
 
 const getSeverityLabel = (severity) => {
   const labels = {
@@ -21,6 +22,7 @@ const getStatusColor = (status) => {
     suspect_identified: 'bg-orange-100 text-orange-800',
     interrogation: 'bg-red-100 text-red-800',
     pending_captain: 'bg-indigo-100 text-indigo-800',
+    pending_chief: 'bg-rose-100 text-rose-800',
     trial: 'bg-cyan-100 text-cyan-800',
     closed_solved: 'bg-green-100 text-green-800',
     closed_unsolved: 'bg-gray-100 text-gray-800',
@@ -61,6 +63,9 @@ const CaseDetailPage = () => {
   const canApproveCase = user?.is_staff || ['sergeant', 'captain', 'chief'].some(r => userRoles.includes(r));
   const isDetective = userRoles.includes('detective');
   const isSergeant = userRoles.includes('sergeant');
+  const isCaptain = userRoles.includes('captain');
+  const isChief = userRoles.includes('chief');
+  const [guiltScores, setGuiltScores] = useState({});
 
   const fetchCase = async () => {
     try {
@@ -160,6 +165,60 @@ const CaseDetailPage = () => {
       await fetchCase();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to reject suspects');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSubmitGuiltScore = async (suspectId, role) => {
+    const score = guiltScores[`${role}_${suspectId}`];
+    if (!score || score < 1 || score > 10) return;
+    try {
+      setActionLoading(true);
+      if (role === 'detective') {
+        await suspectService.submitDetectiveScore(suspectId, { score: parseInt(score) });
+      } else {
+        await suspectService.submitSergeantScore(suspectId, { score: parseInt(score) });
+      }
+      await fetchSuspects();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to submit score');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSubmitToCaptain = async () => {
+    try {
+      setActionLoading(true);
+      await casesService.submitToCaptain(caseId);
+      await fetchCase();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to submit to captain');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCaptainApprove = async () => {
+    try {
+      setActionLoading(true);
+      await casesService.captainApprove(caseId);
+      await fetchCase();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to approve');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleChiefApprove = async () => {
+    try {
+      setActionLoading(true);
+      await casesService.chiefApprove(caseId);
+      await fetchCase();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to approve');
     } finally {
       setActionLoading(false);
     }
@@ -440,6 +499,143 @@ const CaseDetailPage = () => {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Interrogation Phase - Detective & Sergeant submit guilt scores */}
+        {caseData.status === 'interrogation' && (isDetective || isSergeant) && (
+          <div className="bg-red-50 border border-red-300 rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-red-800 mb-3">Interrogation Phase</h2>
+            <p className="text-red-700 mb-4">
+              Submit guilt probability scores (1-10) for each suspect.
+            </p>
+            {suspects.length > 0 ? (
+              <div className="space-y-4">
+                {suspects.map((link) => {
+                  const suspectId = link.suspect_detail?.id || link.suspect;
+                  const role = isDetective ? 'detective' : 'sergeant';
+                  const scoreKey = `${role}_${suspectId}`;
+                  const existingScore = isDetective
+                    ? link.suspect_detail?.detective_guilt_score
+                    : link.suspect_detail?.sergeant_guilt_score;
+                  return (
+                    <div key={link.id} className="border border-red-200 rounded-lg p-4 bg-white">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name}</p>
+                          <p className="text-sm text-gray-500">
+                            Detective score: {link.suspect_detail?.detective_guilt_score ?? '—'} | 
+                            Sergeant score: {link.suspect_detail?.sergeant_guilt_score ?? '—'}
+                          </p>
+                        </div>
+                        {existingScore ? (
+                          <span className="text-green-700 font-semibold text-sm">Score submitted: {existingScore}/10</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="1"
+                              max="10"
+                              value={guiltScores[scoreKey] || ''}
+                              onChange={(e) => setGuiltScores({ ...guiltScores, [scoreKey]: e.target.value })}
+                              className="w-20 p-2 border border-gray-300 rounded-lg text-sm"
+                              placeholder="1-10"
+                            />
+                            <button
+                              onClick={() => handleSubmitGuiltScore(suspectId, role)}
+                              disabled={actionLoading}
+                              className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold text-sm transition disabled:opacity-50"
+                            >
+                              Submit
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-500">No suspects in interrogation.</p>
+            )}
+            {/* Submit to Captain button - visible when all scores are in */}
+            {(isDetective || isSergeant) && suspects.length > 0 && suspects.every(
+              (link) => link.suspect_detail?.detective_guilt_score && link.suspect_detail?.sergeant_guilt_score
+            ) && (
+              <button
+                onClick={handleSubmitToCaptain}
+                disabled={actionLoading}
+                className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+              >
+                {actionLoading ? 'Submitting...' : 'Submit to Captain for Decision'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Pending Captain Decision */}
+        {caseData.status === 'pending_captain' && isCaptain && (
+          <div className="bg-indigo-50 border border-indigo-300 rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-indigo-800 mb-3">Pending Captain Decision</h2>
+            <p className="text-indigo-700 mb-4">
+              Review guilt scores, evidence, and testimonies. Then approve to proceed.
+            </p>
+            {suspects.length > 0 && (
+              <div className="space-y-3 mb-4">
+                {suspects.map((link) => (
+                  <div key={link.id} className="border border-indigo-200 rounded-lg p-4 bg-white">
+                    <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Detective score: <span className="font-bold">{link.suspect_detail?.detective_guilt_score ?? '—'}/10</span> | 
+                      Sergeant score: <span className="font-bold">{link.suspect_detail?.sergeant_guilt_score ?? '—'}/10</span>
+                    </p>
+                    {link.suspect_detail?.captain_decision && (
+                      <p className="text-sm text-green-700 mt-1">Decision: {link.suspect_detail.captain_decision}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={handleCaptainApprove}
+              disabled={actionLoading}
+              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+            >
+              {actionLoading ? 'Processing...' : caseData.crime_severity === 0 ? 'Approve – Escalate to Chief' : 'Approve – Send to Trial'}
+            </button>
+          </div>
+        )}
+
+        {/* Pending Chief Decision (Critical cases) */}
+        {caseData.status === 'pending_chief' && isChief && (
+          <div className="bg-rose-50 border border-rose-300 rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-rose-800 mb-3">Pending Chief Decision (Critical Case)</h2>
+            <p className="text-rose-700 mb-4">
+              This is a critical-level case. Review captain's decision and approve to send to trial.
+            </p>
+            {suspects.length > 0 && (
+              <div className="space-y-3 mb-4">
+                {suspects.map((link) => (
+                  <div key={link.id} className="border border-rose-200 rounded-lg p-4 bg-white">
+                    <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Detective: {link.suspect_detail?.detective_guilt_score ?? '—'}/10 | 
+                      Sergeant: {link.suspect_detail?.sergeant_guilt_score ?? '—'}/10
+                    </p>
+                    {link.suspect_detail?.captain_decision && (
+                      <p className="text-sm text-indigo-700 mt-1">Captain: {link.suspect_detail.captain_decision}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={handleChiefApprove}
+              disabled={actionLoading}
+              className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+            >
+              {actionLoading ? 'Processing...' : 'Approve – Send to Trial'}
+            </button>
           </div>
         )}
 

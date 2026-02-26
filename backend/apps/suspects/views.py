@@ -54,6 +54,22 @@ class SuspectViewSet(viewsets.ModelViewSet):
             ).values_list("suspect_id", flat=True)
             return Suspect.objects.filter(id__in=suspect_ids).distinct()
 
+        # Captain sees suspects from cases pending captain decision
+        if "Captain" in user_roles:
+            from apps.cases.models import CaseStatus
+            suspect_ids = CaseSuspect.objects.filter(
+                case__status__in=[CaseStatus.INTERROGATION, CaseStatus.PENDING_CAPTAIN]
+            ).values_list("suspect_id", flat=True)
+            return Suspect.objects.filter(id__in=suspect_ids).distinct()
+
+        # Chief sees suspects from critical cases pending chief decision
+        if "Chief" in user_roles:
+            from apps.cases.models import CaseStatus
+            suspect_ids = CaseSuspect.objects.filter(
+                case__status=CaseStatus.PENDING_CHIEF
+            ).values_list("suspect_id", flat=True)
+            return Suspect.objects.filter(id__in=suspect_ids).distinct()
+
         return Suspect.objects.none()
 
     def get_serializer_class(self):
@@ -65,20 +81,28 @@ class SuspectViewSet(viewsets.ModelViewSet):
     def most_wanted(self, request):
         """
         Public Most Wanted list.
-        Returns suspects in Most Wanted status, ranked by formula.
+        Auto-promotes suspects under pursuit for 30+ days to Most Wanted.
+        Returns suspects ranked by formula: max(Lj) * max(Di).
         """
+        # Auto-promote eligible suspects (under pursuit > 30 days)
+        eligible = Suspect.objects.filter(status=SuspectStatus.UNDER_PURSUIT)
+        for suspect in eligible:
+            if suspect.is_most_wanted_eligible:
+                suspect.mark_most_wanted()
+                suspect.save()
+
         suspects = Suspect.objects.filter(
-            status__in=[SuspectStatus.UNDER_PURSUIT, SuspectStatus.MOST_WANTED]
+            status = SuspectStatus.MOST_WANTED
         )
-        
+
         # Sort by rank (computed property)
         suspects_with_rank = [
             (s, s.most_wanted_rank) for s in suspects
         ]
         suspects_with_rank.sort(key=lambda x: x[1], reverse=True)
-        
+
         sorted_suspects = [s[0] for s in suspects_with_rank]
-        
+
         serializer = MostWantedSerializer(sorted_suspects, many=True)
         return Response(serializer.data)
 
@@ -121,6 +145,13 @@ class SuspectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def arrest(self, request, pk=None):
         """Mark suspect as arrested."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Sergeant" not in user_roles:
+            return Response(
+                {"error": "Only Sergeant can arrest suspects."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        
         suspect = self.get_object()
         
         try:
@@ -145,10 +176,16 @@ class SuspectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def detective_score(self, request, pk=None):
         """Detective submits guilt probability score (1-10)."""
-        suspect = self.get_object()
-        if suspect.status not in (SuspectStatus.ARRESTED, SuspectStatus.UNDER_INVESTIGATION):
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Detective" not in user_roles:
             return Response(
-                {"error": "Guilt scoring is only allowed for arrested or under-investigation suspects."},
+                {"error": "Only detectives can submit detective guilt scores."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        suspect = self.get_object()
+        if suspect.status != SuspectStatus.ARRESTED:
+            return Response(
+                {"error": "Guilt scoring is only allowed for arrested suspects during interrogation."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         serializer = GuildScoreSerializer(data=request.data)
@@ -162,10 +199,16 @@ class SuspectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def sergeant_score(self, request, pk=None):
         """Sergeant submits guilt probability score (1-10)."""
-        suspect = self.get_object()
-        if suspect.status not in (SuspectStatus.ARRESTED, SuspectStatus.UNDER_INVESTIGATION):
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Sergeant" not in user_roles:
             return Response(
-                {"error": "Guilt scoring is only allowed for arrested or under-investigation suspects."},
+                {"error": "Only sergeants can submit sergeant guilt scores."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        suspect = self.get_object()
+        if suspect.status != SuspectStatus.ARRESTED:
+            return Response(
+                {"error": "Guilt scoring is only allowed for arrested suspects during interrogation."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         serializer = GuildScoreSerializer(data=request.data)
@@ -178,7 +221,13 @@ class SuspectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def captain_decision(self, request, pk=None):
-        """Captain makes final decision."""
+        """Captain makes final decision on suspect."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Captain" not in user_roles:
+            return Response(
+                {"error": "Only Captain can make captain decisions."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         suspect = self.get_object()
         serializer = CaptainDecisionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -191,8 +240,19 @@ class SuspectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def chief_decision(self, request, pk=None):
         """Chief makes decision for critical cases."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Chief" not in user_roles:
+            return Response(
+                {"error": "Only Chief can make chief decisions."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         suspect = self.get_object()
         decision = request.data.get("decision", "")
+        if not decision:
+            return Response(
+                {"error": "Decision text is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         
         suspect.chief_decision = decision
         suspect.save()

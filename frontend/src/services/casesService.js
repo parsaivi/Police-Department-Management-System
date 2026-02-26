@@ -18,6 +18,9 @@ export const casesService = {
   
   // Get detective board
   getDetectiveBoard: (id) => api.get(`/cases/${id}/detective_board/`),
+
+  // Detective board: list accessible investigation cases assigned to current detective
+  getDetectiveBoardCases: () => api.get('/cases/detective-board-cases/'),
   
   // Update detective board
   updateDetectiveBoard: (id, boardData) => api.put(`/cases/${id}/detective_board/`, boardData),
@@ -37,6 +40,15 @@ export const casesService = {
   // Submit to captain
   submitToCaptain: (id) => api.post(`/cases/${id}/submit_to_captain/`),
   
+  // Captain approves case (non-critical → trial, critical → chief)
+  captainApprove: (id) => api.post(`/cases/${id}/captain_approve/`),
+
+  // Chief approves critical case → trial
+  chiefApprove: (id) => api.post(`/cases/${id}/chief_approve/`),
+
+  // Escalate to chief
+  escalateToChief: (id) => api.post(`/cases/${id}/escalate_to_chief/`),
+
   // Send to trial
   sendToTrial: (id, trialData) => api.post(`/cases/${id}/send_to_trial/`, trialData),
   

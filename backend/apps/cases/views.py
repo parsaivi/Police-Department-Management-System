@@ -60,11 +60,24 @@ class CaseViewSet(viewsets.ModelViewSet):
         if "Sergeant" in user_roles:
             q |= models.Q(status=CaseStatus.SUSPECT_IDENTIFIED)
         
+        # Captain can see cases pending their decision and interrogation cases
+        if "Captain" in user_roles:
+            q |= models.Q(status=CaseStatus.PENDING_CAPTAIN)
+            q |= models.Q(status=CaseStatus.INTERROGATION)
+
+        # Chief can see cases pending their decision
+        if "Chief" in user_roles:
+            q |= models.Q(status=CaseStatus.PENDING_CHIEF)
+
+        # Judge can see cases in trial
+        if "Judge" in user_roles:
+            q |= models.Q(status=CaseStatus.TRIAL)
+
         # Detectives can see created cases (to pick them up for investigation)
         # Their own investigation cases are already visible via lead_detective=user
         if "Detective" in user_roles:
             q |= models.Q(status=CaseStatus.CREATED)
-            q |= models.Q(status=CaseStatus.INVESTIGATION)
+            q |= (models.Q(status=CaseStatus.INVESTIGATION) & models.Q(lead_detective=user))
         
         return Case.objects.filter(q).distinct()
 
@@ -253,25 +266,48 @@ class CaseViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def submit_to_captain(self, request, pk=None):
-        """Submit to captain for decision."""
+        """Submit to captain for decision after interrogation scores are complete."""
         case = self.get_object()
         from_status = case.status
         
         try:
             case.submit_to_captain()
             case.save()
-            self._log_transition(case, from_status, case.status, request.user)
-            
-            # Auto-escalate critical cases to Chief
+            self._log_transition(case, from_status, case.status, request.user,
+                                 "Interrogation complete – submitted to captain")
+            return Response(CaseSerializer(case, context={"request": request}).data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["post"])
+    def captain_approve(self, request, pk=None):
+        """Captain approves case after reviewing scores and evidence.
+        Non-critical → trial. Critical → escalate to chief."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Captain" not in user_roles:
+            return Response(
+                {"error": "Only Captain can approve cases at this stage."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        case = self.get_object()
+        from_status = case.status
+        
+        try:
             if case.crime_severity == CrimeSeverity.CRITICAL:
-                captain_status = case.status
                 case.escalate_to_chief()
                 case.save()
                 self._log_transition(
-                    case, captain_status, case.status, request.user,
-                    "Auto-escalated to Chief due to critical severity"
+                    case, from_status, case.status, request.user,
+                    "Captain approved – escalated to Chief (critical case)"
                 )
-            
+            else:
+                case.send_to_trial()
+                case.save()
+                self._log_transition(
+                    case, from_status, case.status, request.user,
+                    "Captain approved – sent to trial"
+                )
             return Response(CaseSerializer(case, context={"request": request}).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -291,8 +327,38 @@ class CaseViewSet(viewsets.ModelViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["post"])
+    def chief_approve(self, request, pk=None):
+        """Chief approves critical case for trial."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and "Chief" not in user_roles:
+            return Response(
+                {"error": "Only Chief can approve cases at this stage."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        case = self.get_object()
+        from_status = case.status
+        
+        try:
+            case.send_to_trial()
+            case.save()
+            self._log_transition(
+                case, from_status, case.status, request.user,
+                "Chief approved – sent to trial"
+            )
+            return Response(CaseSerializer(case, context={"request": request}).data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["post"])
     def send_to_trial(self, request, pk=None):
-        """Send case to trial."""
+        """Send case to trial (Captain/Chief only)."""
+        user_roles = request.user.get_roles()
+        if not request.user.is_staff and not any(role in ["Captain", "Chief"] for role in user_roles):
+            return Response(
+                {"error": "Only Captain or Chief can send cases to trial."},
+                status=status.HTTP_403_FORBIDDEN
+            )
         case = self.get_object()
         from_status = case.status
         
@@ -434,3 +500,22 @@ class CaseViewSet(viewsets.ModelViewSet):
         from apps.suspects.serializers import CaseSuspectSerializer
         links = CaseSuspect.objects.filter(case=case).select_related("suspect", "added_by")
         return Response(CaseSuspectSerializer(links, many=True).data)
+    
+    @action(detail=False, methods=["get"], url_path="detective-board-cases")
+    def detective_board_cases(self, request):
+        """
+        Returns cases that the current detective can open in detective board:
+        status=INVESTIGATION and lead_detective=user
+        """
+        user = request.user
+
+        if not user.is_staff and not user.has_role("Detective"):
+            return Response([])
+
+        qs = Case.objects.filter(
+            models.Q(status=CaseStatus.INVESTIGATION) &
+            models.Q(lead_detective=user)
+        ).distinct().order_by("-updated_at")
+
+        data = list(qs.values("id", "case_number", "title", "status", "updated_at"))
+        return Response(data)

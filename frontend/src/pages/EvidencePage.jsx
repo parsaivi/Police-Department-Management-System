@@ -513,10 +513,14 @@ const EvidencePage = () => {
                   {evidenceList.map((item) => (
                     <tr key={item.id} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4 text-sm font-semibold text-blue-600">
-                        #{item.id}
+                        <Link to={`/evidence/${item.id}`} className="hover:underline">
+                          #{item.id}
+                        </Link>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        {item.title || 'Untitled'}
+                        <Link to={`/evidence/${item.id}`} className="text-blue-600 hover:text-blue-700 font-semibold hover:underline">
+                          {item.title || 'Untitled'}
+                        </Link>
                       </td>
                       <td className="px-6 py-4">
                         <span

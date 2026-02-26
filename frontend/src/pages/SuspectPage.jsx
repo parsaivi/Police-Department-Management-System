@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import suspectService from '../services/suspectService';
+import { useSelector } from 'react-redux';
 
 const SuspectPage = () => {
   const [suspects, setSuspects] = useState([]);
@@ -35,10 +36,23 @@ const SuspectPage = () => {
     }
   };
 
+  const handleArrest = async (id) => {
+    try {
+      setError(null);
+      await suspectService.arrest(id);
+      fetchSuspects();
+    } catch (err) {
+      setError(err.response?.data?.error || err.response?.data?.detail || 'Failed to arrest suspect');
+    }
+  };
+  const { user } = useSelector((state) => state.auth);
+  const userRoles = (user?.roles || user?.groups || []).map(r => String(r).toLowerCase());
+  const isSergeant = user?.is_staff || userRoles.includes('sergeant');
+
   const getStatusColor = (status) => {
     const colors = {
       under_investigation: 'bg-blue-100 text-blue-800',
-      wanted: 'bg-orange-100 text-orange-800',
+      under_pursuit: 'bg-orange-100 text-orange-800',
       most_wanted: 'bg-red-100 text-red-800',
       arrested: 'bg-gray-100 text-gray-800',
     };
@@ -65,12 +79,6 @@ const SuspectPage = () => {
             <h1 className="text-4xl font-bold text-gray-900">Suspects</h1>
             <p className="text-gray-600 mt-2">Total: {suspects.length} suspects</p>
           </div>
-          <Link
-            to="/suspects/new"
-            className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition"
-          >
-            Add Suspect
-          </Link>
         </div>
 
         {error && (
@@ -95,7 +103,7 @@ const SuspectPage = () => {
             >
               <option value="all">All Suspects</option>
               <option value="under_investigation">Under Investigation</option>
-              <option value="wanted">Wanted</option>
+              <option value="under_pursuit">Wanted</option>
               <option value="most_wanted">Most Wanted</option>
               <option value="arrested">Arrested</option>
             </select>
@@ -137,7 +145,7 @@ const SuspectPage = () => {
                   {suspects.map((suspect) => (
                     <tr key={suspect.id} className="hover:bg-gray-50 transition">
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                        {suspect.first_name} {suspect.last_name}
+                        {suspect.full_name}
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -152,11 +160,11 @@ const SuspectPage = () => {
                         {suspect.days_wanted || '0'}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700">
-                        Level {suspect.crime_severity || '0'}
+                        Level {suspect.max_crime_severity || '0'}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-green-600">
-                        {suspect.reward
-                          ? (suspect.reward).toLocaleString()
+                        {suspect.reward_amount
+                          ? (suspect.reward_amount).toLocaleString()
                           : '0'}
                       </td>
                       <td className="px-6 py-4 text-sm">
@@ -166,6 +174,14 @@ const SuspectPage = () => {
                         >
                           View Details
                         </Link>
+                         {isSergeant && suspect.status !== 'arrested' && (
+                          <button
+                            onClick={() => handleArrest(suspect.id)}
+                            className="text-white bg-gray-800 hover:bg-gray-900 px-3 py-1 rounded font-semibold"
+                          >
+                            Arrest
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

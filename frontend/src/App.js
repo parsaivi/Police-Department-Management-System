@@ -24,6 +24,7 @@ import ComplaintCreatePage from './pages/ComplaintCreatePage';
 import ComplaintDetailPage from './pages/ComplaintDetailPage';
 import SuspectDetailPage from './pages/SuspectDetailPage';
 import EvidencePage from './pages/EvidencePage';
+import EvidenceDetailPage from './pages/EvidenceDetailPage';
 
 function App() {
   return (
@@ -68,6 +69,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <CaseDetailPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/detective-board"
+              element={
+                <PrivateRoute>
+                  <DetectiveBoardPage />
                 </PrivateRoute>
               }
             />
@@ -135,6 +144,7 @@ function App() {
                 </PrivateRoute>
               }
             />
+	   <Route path="/evidence/:id" element={<EvidenceDetailPage />} />
             <Route
               path="/admin"
               element={

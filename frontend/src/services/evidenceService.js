@@ -32,6 +32,11 @@ export const evidenceService = {
 
   // List attachments for evidence
   getAttachments: (id) => api.get(`/evidence/${id}/attachments/`),
+
+// Delete attachment (you'll need to add this endpoint in Django)
+  deleteAttachment: (attachmentId) => {
+  	return api.delete(`/attachments/${attachmentId}/`);
+  },
 };
 
 export default evidenceService;

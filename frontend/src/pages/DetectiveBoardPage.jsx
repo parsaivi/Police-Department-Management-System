@@ -1,16 +1,61 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import casesService from '../services/casesService';
 
 const DetectiveBoardPage = () => {
   const { caseId } = useParams();
+  const navigate = useNavigate();
+
   const [board, setBoard] = useState({ notes: [], connections: [], evidence_items: [] });
   const [newNote, setNewNote] = useState('');
   const [newConnection, setNewConnection] = useState({ from: 0, to: 1, type: 'related' });
   const [loading, setLoading] = useState(false);
+
+  const [pickLoading, setPickLoading] = useState(false);
+  const [pickCases, setPickCases] = useState([]);
   const [error, setError] = useState(null);
   const canvasRef = useRef(null);
   const draggingRef = useRef(null);
+
+  useEffect(() => {
+    setError(null);
+
+    if (caseId) {
+      fetchBoard();
+    } else {
+      fetchPickCases();
+    }
+  }, [caseId]);
+
+  const fetchPickCases = async () => {
+    try {
+      setPickLoading(true);
+      const res = await casesService.getDetectiveBoardCases();
+      const items = res.data || [];
+      setPickCases(items);
+
+      if (items.length === 1) {
+        navigate(`/detective-board/${items[0].id}`, { replace: true });
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to fetch detective cases');
+    } finally {
+      setPickLoading(false);
+    }
+  };
+   
+  const fetchBoard = async () => {
+    try {
+      setLoading(true);
+      const response = await casesService.getDetectiveBoard(caseId);
+      setBoard(response.data || { notes: [], connections: [], evidence_items: [] });
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to fetch detective board');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const handleNoteMouseDown = (e, noteId) => {
     if (e.target.tagName === 'BUTTON') return;
@@ -46,24 +91,6 @@ const DetectiveBoardPage = () => {
       await casesService.updateDetectiveBoard(caseId, board);
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to save note position');
-    }
-  };
-
-  useEffect(() => {
-    if (caseId) {
-      fetchBoard();
-    }
-  }, [caseId]);
-
-  const fetchBoard = async () => {
-    try {
-      setLoading(true);
-      const response = await casesService.getDetectiveBoard(caseId);
-      setBoard(response.data || { notes: [], connections: [], evidence_items: [] });
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to fetch detective board');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -146,6 +173,58 @@ const DetectiveBoardPage = () => {
       setError(err.response?.data?.detail || 'Failed to delete connection');
     }
   };
+
+  if (!caseId) {
+    if (pickLoading) {
+      return (
+        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-600">Loading your investigation cases...</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-100 p-8">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">Choose a Case</h1>
+
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+              {error}
+            </div>
+          )}
+
+          {pickCases.length === 0 ? (
+            <div className="bg-white rounded-lg shadow p-6 text-gray-700">
+              No investigation cases assigned to you.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pickCases.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => navigate(`/detective-board/${c.id}`)}
+                  className="w-full text-left bg-white rounded-lg shadow p-4 hover:bg-gray-50 transition"
+                >
+                  <div className="font-bold text-gray-900">
+                    {c.title || `Case #${c.case_number || c.id}`}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {c.case_number ? `#${c.case_number} • ` : ''}
+                    Status: {c.status}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
 
   if (loading) {
     return (

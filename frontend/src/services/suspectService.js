@@ -36,6 +36,15 @@ export const suspectService = {
   
   // Submit sergeant guilt score
   submitSergeantScore: (id, scoreData) => api.post(`/suspects/${id}/sergeant_score/`, scoreData),
+
+  // Captain decision on suspect
+  captainDecision: (id, data) => api.post(`/suspects/${id}/captain_decision/`, data),
+
+  // Chief decision on suspect (critical cases)
+  chiefDecision: (id, data) => api.post(`/suspects/${id}/chief_decision/`, data),
+
+  // Link suspect to case
+  linkToCase: (id, data) => api.post(`/suspects/${id}/link_to_case/`, data),
 };
 
 export default suspectService;

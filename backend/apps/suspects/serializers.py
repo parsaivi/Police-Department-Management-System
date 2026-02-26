@@ -95,6 +95,7 @@ class MostWantedSerializer(serializers.ModelSerializer):
     days_wanted = serializers.IntegerField(read_only=True)
     most_wanted_rank = serializers.IntegerField(read_only=True)
     reward_amount = serializers.IntegerField(read_only=True)
+    max_crime_severity = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Suspect
@@ -102,6 +103,7 @@ class MostWantedSerializer(serializers.ModelSerializer):
             "id", "full_name", "aliases", "photo", "description",
             "last_known_location", "wanted_since",
             "days_wanted", "most_wanted_rank", "reward_amount",
+            "max_crime_severity",
         ]
 
 

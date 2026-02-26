@@ -359,7 +359,7 @@ const ComplaintDetailPage = () => {
             )}
 
             {/* Complainant: Returned → Resubmit */}
-            {isComplainant && complaint.status === 'returned_to_complainant' && (
+            {isComplainant && complaint.status === 'returned' && (
               <button
                 onClick={() => handleAction(() => complaintService.resubmitComplaint(complaintId))}
                 disabled={actionLoading}
@@ -487,7 +487,7 @@ const ComplaintDetailPage = () => {
 
             {/* No actions available */}
             {!(
-              (isComplainant && (complaint.status === 'draft' || complaint.status === 'returned_to_complainant')) ||
+              (isComplainant && (complaint.status === 'draft' || complaint.status === 'invalidated')) ||
               ((isOfficer || isAdmin) && complaint.status === 'submitted') ||
               (isCadet && (complaint.status === 'cadet_review' || complaint.status === 'returned_to_cadet')) ||
               (isOfficer && complaint.status === 'officer_review')

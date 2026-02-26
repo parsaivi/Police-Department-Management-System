@@ -62,7 +62,7 @@ const MostWantedPage = () => {
                 {/* Rank Badge */}
                 <div className="bg-red-600 text-white p-4 flex justify-between items-center">
                   <div>
-                    <p className="text-sm font-semibold">RANK #{idx + 1}</p>
+                    <p className="text-sm font-semibold">Rank {idx + 1}</p>
                     <p className="text-2xl font-bold">Rials {(suspect.reward_amount || 0).toLocaleString()}</p>
                   </div>
                   <div className="text-4xl">⚠️</div>
@@ -85,7 +85,7 @@ const MostWantedPage = () => {
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-gray-600">RANK</p>
+                      <p className="text-sm font-semibold text-gray-600">Score</p>
                       <div className="text-lg font-bold text-red-600">
                         #{suspect.most_wanted_rank || 'N/A'}
                       </div>

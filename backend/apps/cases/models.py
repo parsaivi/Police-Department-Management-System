@@ -131,6 +131,39 @@ class Case(TimeStampedModel):
         short_uuid = uuid.uuid4().hex[:4].upper()
         return f"CASE-{date_str}-{short_uuid}"
 
+    # Helper methods for transition conditions
+    def has_suspects(self):
+        """Check that at least one suspect is linked to this case."""
+        return self.suspect_links.exists()
+
+    def has_guilt_scores(self):
+        """Check that all suspects have both detective and sergeant guilt scores."""
+        for link in self.suspect_links.select_related("suspect").all():
+            s = link.suspect
+            if s.detective_guilt_score is None or s.sergeant_guilt_score is None:
+                return False
+        return self.suspect_links.exists()
+
+    def has_captain_decision(self):
+        """Check that captain decision exists for all suspects."""
+        for link in self.suspect_links.select_related("suspect").all():
+            if not link.suspect.captain_decision:
+                return False
+        return self.suspect_links.exists()
+
+    def has_chief_decision_if_critical(self):
+        """For critical crimes, check chief decision exists."""
+        if self.crime_severity != CrimeSeverity.CRITICAL:
+            return True
+        for link in self.suspect_links.select_related("suspect").all():
+            if not link.suspect.chief_decision:
+                return False
+        return True
+
+    def has_trial_verdict(self):
+        """Check that the trial has a verdict."""
+        return hasattr(self, "trial") and self.trial.verdict is not None
+
     # State transitions
     @transition(
         field=status,
@@ -139,7 +172,8 @@ class Case(TimeStampedModel):
     )
     def submit_for_approval(self):
         """Submit crime scene case for superior approval."""
-        pass
+        if self.origin != CaseOrigin.CRIME_SCENE:
+            raise ValueError("Only crime scene cases need superior approval.")
 
     @transition(
         field=status,
@@ -159,15 +193,27 @@ class Case(TimeStampedModel):
         """Detective starts investigation on a created case."""
         if detective:
             self.lead_detective = detective
+            self.officers.add(detective)
 
     @transition(
         field=status,
         source=CaseStatus.INVESTIGATION,
-        target=CaseStatus.SUSPECT_IDENTIFIED
+        target=CaseStatus.SUSPECT_IDENTIFIED,
+        conditions=[has_suspects],
     )
     def identify_suspect(self):
-        """Detective identifies primary suspects."""
-        pass
+        """
+        Detective identifies primary suspects and notifies sergeant.
+        Per doc: suspects enter 'under pursuit' from the moment they're identified.
+        """
+        for link in self.suspect_links.select_related("suspect").all():
+            suspect = link.suspect
+            if suspect.status == "identified":
+                suspect.start_investigation()
+                suspect.save()
+            if suspect.status == "under_investigation":
+                suspect.mark_wanted()
+                suspect.save()
 
     @transition(
         field=status,
@@ -175,8 +221,18 @@ class Case(TimeStampedModel):
         target=CaseStatus.INTERROGATION
     )
     def start_interrogation(self):
-        """Begin interrogation of suspects."""
-        pass
+        """
+        Sergeant approves suspects → arrest and interrogation begins.
+        Suspects should already be under_pursuit from identify_suspect.
+        """
+        for link in self.suspect_links.select_related("suspect").all():
+            suspect = link.suspect
+            if suspect.status == "under_pursuit":
+                suspect.arrest()
+                suspect.save()
+            elif suspect.status == "most_wanted":
+                suspect.arrest()
+                suspect.save()
 
     @transition(
         field=status,
@@ -184,44 +240,72 @@ class Case(TimeStampedModel):
         target=CaseStatus.INVESTIGATION
     )
     def reject_suspects(self):
-        """Sergeant rejects identified suspects, case returns to investigation."""
+        """Sergeant rejects identified suspects, case returns to investigation.
+        Suspects remain under pursuit — detective can re-investigate."""
         pass
 
     @transition(
         field=status,
         source=CaseStatus.INTERROGATION,
-        target=CaseStatus.PENDING_CAPTAIN
+        target=CaseStatus.PENDING_CAPTAIN,
+        conditions=[has_guilt_scores],
     )
     def submit_to_captain(self):
-        """Submit to captain for decision."""
+        """
+        Submit interrogation results to captain for decision.
+        Requires detective and sergeant guilt scores for all suspects.
+        """
         pass
 
     @transition(
         field=status,
         source=CaseStatus.PENDING_CAPTAIN,
-        target=CaseStatus.PENDING_CHIEF
+        target=CaseStatus.PENDING_CHIEF,
+        conditions=[has_captain_decision],
     )
     def escalate_to_chief(self):
-        """Escalate critical cases to chief."""
-        pass
+        """Escalate critical cases to chief after captain decision."""
+        if self.crime_severity != CrimeSeverity.CRITICAL:
+            raise ValueError("Only critical-level cases require chief approval.")
 
     @transition(
         field=status,
         source=[CaseStatus.PENDING_CAPTAIN, CaseStatus.PENDING_CHIEF],
-        target=CaseStatus.TRIAL
+        target=CaseStatus.TRIAL,
     )
     def send_to_trial(self):
-        """Send case to trial."""
-        pass
+        """
+        Send case to trial after captain (and chief for critical) approval.
+        Validates that required decisions are in place.
+        """
+        if self.crime_severity == CrimeSeverity.CRITICAL:
+            if not self.has_chief_decision_if_critical():
+                raise ValueError(
+                    "Critical cases require chief decision before trial."
+                )
+        elif not self.has_captain_decision():
+            raise ValueError(
+                "Captain decision is required before sending to trial."
+            )
 
     @transition(
         field=status,
         source=CaseStatus.TRIAL,
-        target=CaseStatus.CLOSED_SOLVED
+        target=CaseStatus.CLOSED_SOLVED,
+        conditions=[has_trial_verdict],
     )
     def close_solved(self):
-        """Close case as solved after trial."""
-        pass
+        """
+        Close case as solved after trial verdict.
+        Marks guilty suspects as convicted.
+        """
+        from apps.judiciary.models import VerdictChoice
+        if self.trial.verdict == VerdictChoice.GUILTY:
+            for link in self.suspect_links.select_related("suspect").all():
+                suspect = link.suspect
+                if suspect.status == "arrested":
+                    suspect.convict()
+                    suspect.save()
 
     @transition(
         field=status,
@@ -233,8 +317,12 @@ class Case(TimeStampedModel):
         target=CaseStatus.CLOSED_UNSOLVED
     )
     def close_unsolved(self):
-        """Close case as unsolved."""
-        pass
+        """Close case as unsolved. Clears suspects that were only identified."""
+        for link in self.suspect_links.select_related("suspect").all():
+            suspect = link.suspect
+            if suspect.status in ("identified", "under_investigation"):
+                suspect.clear()
+                suspect.save()
 
 
 class CaseHistory(TimeStampedModel):

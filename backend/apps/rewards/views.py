@@ -30,6 +30,26 @@ class TipViewSet(viewsets.ModelViewSet):
         if user.is_staff:
             return Tip.objects.all()
         
+        user_roles = user.get_roles()
+        
+        # Police officers see submitted tips for initial review
+        officer_roles = ["Police Officer", "Patrol Officer", "Chief", "Captain", "Sergeant"]
+        if any(role in officer_roles for role in user_roles):
+            from django.db.models import Q
+            return Tip.objects.filter(
+                Q(submitted_by=user) |
+                Q(status=TipStatus.SUBMITTED) |
+                Q(status=TipStatus.OFFICER_REVIEW)
+            ).distinct()
+        
+        # Detectives see tips forwarded for their review (about their cases)
+        if "Detective" in user_roles:
+            from django.db.models import Q
+            return Tip.objects.filter(
+                Q(submitted_by=user) |
+                Q(status=TipStatus.DETECTIVE_REVIEW, case__lead_detective=user)
+            ).distinct()
+        
         # Regular users see their own tips
         return Tip.objects.filter(submitted_by=user)
 

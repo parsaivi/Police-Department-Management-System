@@ -99,20 +99,30 @@ class Suspect(TimeStampedModel):
 
     @property
     def max_crime_severity(self) -> int:
-        """Get maximum crime severity from all linked cases."""
-        cases = self.case_links.select_related("case").all()
-        if not cases:
-            return 4  # Default to lowest severity
-        
-        # Lower number = higher severity in our model
-        min_severity = min(link.case.crime_severity for link in cases)
-        # Convert to 1-4 scale (Critical=0 becomes 4, Level3=3 becomes 1)
+        """
+        Get maximum crime severity from all linked cases (open or closed).
+        Converts CrimeSeverity (CRITICAL=0..LEVEL_3=3) to doc scale (1..4).
+        """
+        links = self.case_links.select_related("case").all()
+        if not links:
+            return 0
+        min_severity = min(link.case.crime_severity for link in links)
+        # Convert: CRITICAL(0)→4, LEVEL_1(1)→3, LEVEL_2(2)→2, LEVEL_3(3)→1
         return 4 - min_severity
 
     @property
     def max_days_wanted_for_case(self) -> int:
-        """Maximum days wanted for any single active case."""
+        """
+        Maximum days wanted for any single OPEN case (per doc formula).
+        Only considers cases that are not closed.
+        """
         if not self.wanted_since:
+            return 0
+        from apps.cases.models import CaseStatus
+        open_cases = self.case_links.select_related("case").exclude(
+            case__status__in=[CaseStatus.CLOSED_SOLVED, CaseStatus.CLOSED_UNSOLVED]
+        )
+        if not open_cases.exists():
             return 0
         return self.days_wanted
 

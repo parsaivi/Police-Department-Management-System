@@ -367,7 +367,7 @@ const CaseDetailPage = () => {
                       </span>
                     </div>
                     <p className="text-sm text-gray-500">
-                      by <span className="font-semibold text-gray-700">{entry.changed_by || 'System'}</span>
+                      by <span className="font-semibold text-gray-700">{formatUserName(entry.changed_by) || 'System'}</span>
                       {' · '}
                       {new Date(entry.created_at).toLocaleString()}
                     </p>

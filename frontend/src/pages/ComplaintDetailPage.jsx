@@ -1,12 +1,22 @@
 import React, { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { Link, useParams } from 'react-router-dom';
 import complaintService from '../services/complaintService';
 
 const ComplaintDetailPage = () => {
   const { complaintId } = useParams();
+  const { user } = useSelector((state) => state.auth);
   const [complaint, setComplaint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [returnMessage, setReturnMessage] = useState('');
+
+  const userRoles = (user?.roles || []).map((r) => r.toLowerCase());
+  const isCadet = userRoles.includes('cadet');
+  const isOfficer = userRoles.includes('police officer');
+  const isComplainant = userRoles.includes('complainant');
 
   useEffect(() => {
     fetchComplaint();
@@ -56,6 +66,20 @@ const ComplaintDetailPage = () => {
       3: 'bg-green-100 text-green-800',
     };
     return colors[severity] || 'bg-gray-100 text-gray-800';
+  };
+
+  const handleAction = async (actionFn) => {
+    try {
+      setActionLoading(true);
+      setActionError(null);
+      await actionFn();
+      setReturnMessage('');
+      await fetchComplaint();
+    } catch (err) {
+      setActionError(err.response?.data?.error || err.response?.data?.detail || 'Action failed');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const formatUserName = (user) => {
@@ -309,6 +333,133 @@ const ComplaintDetailPage = () => {
             <p className="text-gray-500">No history available.</p>
           )}
         </div>
+
+        {/* Action Buttons */}
+        {complaint && (
+          <div className="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Actions</h2>
+
+            {actionError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {actionError}
+              </div>
+            )}
+
+            {/* Complainant: Draft → Submit */}
+            {isComplainant && complaint.status === 'draft' && (
+              <button
+                onClick={() => handleAction(() => complaintService.submitComplaint(complaintId))}
+                disabled={actionLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+              >
+                {actionLoading ? 'Submitting...' : 'Submit Complaint'}
+              </button>
+            )}
+
+            {/* Complainant: Returned → Resubmit */}
+            {isComplainant && complaint.status === 'returned_to_complainant' && (
+              <button
+                onClick={() => handleAction(() => complaintService.resubmitComplaint(complaintId))}
+                disabled={actionLoading}
+                className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+              >
+                {actionLoading ? 'Resubmitting...' : 'Resubmit Complaint'}
+              </button>
+            )}
+
+            {/* Cadet: cadet_review → Escalate or Return */}
+            {isCadet && complaint.status === 'cadet_review' && (
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleAction(() => complaintService.escalateToOfficer(complaintId))}
+                    disabled={actionLoading}
+                    className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Escalating...' : 'Escalate to Officer'}
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Return Reason
+                  </label>
+                  <textarea
+                    value={returnMessage}
+                    onChange={(e) => setReturnMessage(e.target.value)}
+                    placeholder="Enter reason for returning to complainant..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                    rows={3}
+                  />
+                  <button
+                    onClick={() =>
+                      handleAction(() =>
+                        complaintService.returnToComplainant(complaintId, { message: returnMessage })
+                      )
+                    }
+                    disabled={actionLoading || !returnMessage.trim()}
+                    className="mt-2 bg-orange-500 hover:bg-orange-600 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Returning...' : 'Return to Complainant'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Officer: officer_review → Approve, Reject, Return to Cadet */}
+            {isOfficer && complaint.status === 'officer_review' && (
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleAction(() => complaintService.approveComplaint(complaintId))}
+                    disabled={actionLoading}
+                    className="bg-green-600 hover:bg-green-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Approving...' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => handleAction(() => complaintService.rejectComplaint(complaintId))}
+                    disabled={actionLoading}
+                    className="bg-red-600 hover:bg-red-700 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Rejecting...' : 'Reject'}
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Return Reason
+                  </label>
+                  <textarea
+                    value={returnMessage}
+                    onChange={(e) => setReturnMessage(e.target.value)}
+                    placeholder="Enter reason for returning to cadet..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                    rows={3}
+                  />
+                  <button
+                    onClick={() =>
+                      handleAction(() =>
+                        complaintService.returnToCadet(complaintId, { message: returnMessage })
+                      )
+                    }
+                    disabled={actionLoading || !returnMessage.trim()}
+                    className="mt-2 bg-orange-500 hover:bg-orange-600 text-white py-2 px-6 rounded-lg font-semibold transition disabled:opacity-50"
+                  >
+                    {actionLoading ? 'Returning...' : 'Return to Cadet'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* No actions available */}
+            {!(
+              (isComplainant && (complaint.status === 'draft' || complaint.status === 'returned_to_complainant')) ||
+              (isCadet && complaint.status === 'cadet_review') ||
+              (isOfficer && complaint.status === 'officer_review')
+            ) && (
+              <p className="text-gray-500">No actions available for your role on this complaint.</p>
+            )}
+          </div>
+        )}
 
         {/* Timestamps */}
         <div className="bg-white rounded-lg shadow p-6">

@@ -41,6 +41,7 @@ LOCAL_APPS = [
     "apps.suspects",
     "apps.judiciary",
     "apps.rewards",
+    "apps.bail",
     "apps.stats",
 ]
 

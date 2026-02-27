@@ -31,6 +31,8 @@ import TipsPage from './pages/TipsPage';
 import TipSubmitPage from './pages/TipSubmitPage';
 import TipDetailPage from './pages/TipDetailPage';
 import RewardLookupPage from './pages/RewardLookupPage';
+import BailPage from './pages/BailPage';
+import BailReturnPage from './pages/BailReturnPage';
 
 function App() {
   return (
@@ -44,6 +46,8 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/most-wanted" element={<MostWantedPage />} />
+            <Route path="/bail" element={<BailPage />} />
+            <Route path="/bail/return" element={<BailReturnPage />} />
 
             {/* Protected Routes */}
             <Route

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import suspectService from '../services/suspectService';
+import bailService from '../services/bailService';
 import { useSelector } from 'react-redux';
 
 const SuspectDetailPage = () => {
@@ -8,6 +9,9 @@ const SuspectDetailPage = () => {
   const [suspect, setSuspect] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [bailAmount, setBailAmount] = useState('');
+  const [bailFine, setBailFine] = useState('');
+  const [bailSubmitting, setBailSubmitting] = useState(false);
 
   useEffect(() => {
     fetchSuspect();
@@ -34,6 +38,37 @@ const SuspectDetailPage = () => {
       setError(err.response?.data?.error || err.response?.data?.detail || 'Failed to arrest suspect');
     }
   };
+
+  const handleCreateBail = async (e) => {
+    e.preventDefault();
+    const amount = parseInt(bailAmount, 10);
+    if (!amount || amount <= 0) {
+      setError('Enter a valid bail amount (positive number).');
+      return;
+    }
+    try {
+      setError(null);
+      setBailSubmitting(true);
+      await bailService.createBail({
+        suspect: parseInt(suspectId, 10),
+        amount,
+        fine_amount: parseInt(bailFine, 10) || 0,
+      });
+      setBailAmount('');
+      setBailFine('');
+      fetchSuspect();
+      setBailSubmitting(false);
+    } catch (err) {
+      const msg = err.response?.data?.suspect?.[0]
+        || err.response?.data?.amount?.[0]
+        || err.response?.data?.error
+        || err.response?.data?.detail
+        || 'Failed to create bail';
+      setError(Array.isArray(msg) ? msg[0] : msg);
+      setBailSubmitting(false);
+    }
+  };
+
   const { user } = useSelector((state) => state.auth);
   const userRoles = (user?.roles || user?.groups || []).map(r => String(r).toLowerCase());
   const isSergeant = user?.is_staff || userRoles.includes('sergeant');
@@ -45,7 +80,9 @@ const SuspectDetailPage = () => {
       under_pursuit: 'bg-orange-100 text-orange-800',
       most_wanted: 'bg-red-100 text-red-800',
       arrested: 'bg-gray-100 text-gray-800',
+      released_on_bail: 'bg-green-100 text-green-800',
       cleared: 'bg-green-100 text-green-800',
+      convicted: 'bg-red-100 text-red-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -195,6 +232,47 @@ const SuspectDetailPage = () => {
             )
           )}
         </div>
+
+        {/* Create Bail (Sergeant only) */}
+        {isSergeant && (suspect.status === 'arrested' || suspect.status === 'convicted') && (
+          <div className="bg-white rounded-lg shadow p-6 mt-6 border-2 border-blue-200">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">ثبت وثیقه (Create Bail)</h2>
+            <form onSubmit={handleCreateBail} className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Amount (Rials)</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={bailAmount}
+                  onChange={(e) => setBailAmount(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-2 w-40"
+                  placeholder="e.g. 4000000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Fine (Rials, optional)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={bailFine}
+                  onChange={(e) => setBailFine(e.target.value)}
+                  className="border border-gray-300 rounded px-3 py-2 w-40"
+                  placeholder="0"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={bailSubmitting}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded"
+              >
+                {bailSubmitting ? 'Creating...' : 'Create Bail'}
+              </button>
+            </form>
+            <p className="text-sm text-gray-500 mt-2">
+              Eligible: ARRESTED (crime level 2 or 3) or CONVICTED (level 3). One pending bail per suspect.
+            </p>
+          </div>
+        )}
 
         {/* Guilt Scores */}
         {(suspect.detective_guilt_score != null ||

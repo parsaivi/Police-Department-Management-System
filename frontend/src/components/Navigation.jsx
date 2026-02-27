@@ -40,6 +40,9 @@ const Navigation = () => {
                 <Link to="/most-wanted" className="hover:text-blue-200 transition">
                   Most Wanted
                 </Link>
+                <Link to="/bail" className="hover:text-blue-200 transition">
+                  Bail
+                </Link>
               </>
             ) : (
               <>
@@ -60,6 +63,9 @@ const Navigation = () => {
                 </Link>
                 <Link to="/most-wanted" className="hover:text-blue-200 transition">
                   Most Wanted
+                </Link>
+                <Link to="/bail" className="hover:text-blue-200 transition">
+                  Bail
                 </Link>
                 {showJudiciary && (
                   <Link to="/judiciary" className="hover:text-blue-200 transition">

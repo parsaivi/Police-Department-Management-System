@@ -15,6 +15,7 @@ class SuspectStatus(models.TextChoices):
     UNDER_PURSUIT = "under_pursuit", "Under Pursuit (Wanted)"
     MOST_WANTED = "most_wanted", "Most Wanted"
     ARRESTED = "arrested", "Arrested"
+    RELEASED_ON_BAIL = "released_on_bail", "Released on Bail"
     CLEARED = "cleared", "Cleared"
     CONVICTED = "convicted", "Convicted"
 
@@ -221,6 +222,15 @@ class Suspect(TimeStampedModel):
         if self.user:
             self.user.is_criminal = True
             self.user.save()
+
+    @transition(
+        field=status,
+        source=[SuspectStatus.ARRESTED, SuspectStatus.CONVICTED],
+        target=SuspectStatus.RELEASED_ON_BAIL
+    )
+    def release_on_bail(self):
+        """Release suspect on bail payment (level 2/3 suspects or level 3 convicts)."""
+        pass
 
 
 class CaseSuspect(TimeStampedModel):

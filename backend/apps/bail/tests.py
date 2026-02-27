@@ -170,21 +170,26 @@ class BailAPITestCase(APITestCase):
             ids = [resp.data["id"]] if "id" in resp.data else []
         self.assertIn(bail.pk, ids)
 
-    def test_confirm_payment_marks_paid_and_releases_suspect(self):
+    def test_confirm_payment_returns_success_only_when_already_paid(self):
+        """Payment is confirmed in Zibal callback; confirm_payment only returns status."""
         bail = Bail.objects.create(
             suspect=self.suspect,
             amount=5000,
             created_by=self.sergeant,
             status=BailStatus.PENDING,
         )
-        self.assertEqual(self.suspect.status, SuspectStatus.ARRESTED)
-        resp = self.client.get(
-            f"/api/v1/bail/bails/{bail.pk}/confirm_payment/",
-            {"status": "success"},
-        )
+        resp = self.client.get(f"/api/v1/bail/bails/{bail.pk}/confirm_payment/")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("not completed", resp.data.get("detail", ""))
+
+        from django.utils import timezone
+        bail.status = BailStatus.PAID
+        bail.paid_at = timezone.now()
+        bail.save()
+        self.suspect.release_on_bail()
+        self.suspect.save()
+
+        resp = self.client.get(f"/api/v1/bail/bails/{bail.pk}/confirm_payment/")
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        bail.refresh_from_db()
-        self.suspect.refresh_from_db()
-        self.assertEqual(bail.status, BailStatus.PAID)
-        self.assertIsNotNone(bail.paid_at)
-        self.assertEqual(self.suspect.status, SuspectStatus.RELEASED_ON_BAIL)
+        self.assertIn("confirmed", resp.data.get("detail", "").lower())
+        self.assertEqual(resp.data.get("bail_id"), bail.pk)

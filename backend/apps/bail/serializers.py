@@ -36,7 +36,8 @@ class BailSerializer(serializers.ModelSerializer):
         model = Bail
         fields = [
             "id", "suspect", "suspect_detail", "amount", "fine_amount",
-            "status", "created_by", "paid_at", "created_at", "updated_at",
+            "status", "created_by", "paid_at", "zibal_track_id",
+            "created_at", "updated_at",
         ]
 
     def get_suspect_detail(self, obj):

@@ -9,18 +9,30 @@ const BailReturnPage = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const bailId = searchParams.get('bail_id');
+    const bailId = searchParams.get('bail_id') || searchParams.get('payment_id');
     const statusParam = searchParams.get('status');
+    const errorParam = searchParams.get('error');
+    if (!bailId && statusParam !== 'success') {
+      if (errorParam) {
+        setError(errorParam);
+      } else {
+        setError('Missing bail_id in URL');
+      }
+      setLoading(false);
+      return;
+    }
+    if (statusParam === 'failed' && errorParam) {
+      setError(errorParam);
+      setLoading(false);
+      return;
+    }
     if (!bailId) {
-      setError('Missing bail_id in URL');
       setLoading(false);
       return;
     }
     const confirm = async () => {
       try {
-        const response = await bailService.confirmPayment(bailId, {
-          status: statusParam || 'success',
-        });
+        const response = await bailService.confirmPayment(bailId);
         setResult(response.data);
       } catch (err) {
         setError(

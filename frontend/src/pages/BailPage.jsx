@@ -28,11 +28,11 @@ const BailPage = () => {
     const returnUrl = `${window.location.origin}/bail/return`;
     try {
       const response = await bailService.initiatePayment(bailId, { return_url: returnUrl });
-      const redirectUrl = response.data?.redirect_url;
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
+      const paymentUrl = response.data?.payment_url;
+      if (paymentUrl) {
+        window.location.href = paymentUrl;
       } else {
-        setError('No redirect URL received');
+        setError(response.data?.error || 'No payment URL received');
       }
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Failed to start payment');

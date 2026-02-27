@@ -39,6 +39,11 @@ class Bail(TimeStampedModel):
         default=BailStatus.PENDING,
     )
     paid_at = models.DateTimeField(null=True, blank=True)
+    zibal_track_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        help_text="Zibal payment session trackId",
+    )
 
     class Meta:
         ordering = ["-created_at"]

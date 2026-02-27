@@ -164,3 +164,10 @@ SPECTACULAR_SETTINGS = {
 # CORS
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOWED_ORIGINS = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3001").split(",")
+
+# Zibal IPG (درگاه پرداخت زیبال)
+# https://gateway.zibal.ir - use merchant "zibal" for test
+ZIBAL_GATEWAY_BASE = os.getenv("ZIBAL_GATEWAY_BASE", "https://gateway.zibal.ir")
+ZIBAL_MERCHANT = os.getenv("ZIBAL_MERCHANT", "zibal")
+# Frontend URL for redirect after payment (used when return_url not in cache)
+FRONTEND_BAIL_RETURN_BASE = os.getenv("FRONTEND_BAIL_RETURN_BASE", "http://localhost:3001")

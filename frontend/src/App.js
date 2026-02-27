@@ -27,6 +27,9 @@ import EvidencePage from './pages/EvidencePage';
 import EvidenceDetailPage from './pages/EvidenceDetailPage';
 import TrialsListPage from './pages/TrialsListPage';
 import TrialDetailPage from './pages/TrialDetailPage';
+import TipsPage from './pages/TipsPage';
+import TipSubmitPage from './pages/TipSubmitPage';
+import RewardLookupPage from './pages/RewardLookupPage';
 
 function App() {
   return (
@@ -168,6 +171,30 @@ function App() {
               element={
                 <PrivateRoute>
                   <AdminPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/tips"
+              element={
+                <PrivateRoute>
+                  <TipsPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/tips/new"
+              element={
+                <PrivateRoute>
+                  <TipSubmitPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/reward-lookup"
+              element={
+                <PrivateRoute>
+                  <RewardLookupPage />
                 </PrivateRoute>
               }
             />

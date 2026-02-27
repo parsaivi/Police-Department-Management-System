@@ -62,7 +62,7 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [user]);
+  }, [user?.id]);
 
   const fetchDashboardData = async () => {
     try {
@@ -81,6 +81,46 @@ const DashboardPage = () => {
         description: 'View and manage cases',
         link: '/cases',
       });
+
+      // Tips & Rewards: all authenticated users can submit and see their tips
+      availableModules.push({
+        id: 'tips',
+        title: 'Submit tip / Reward info',
+        icon: '💰',
+        description: 'Submit information about a case or suspect, view your tips and reward codes',
+        link: '/tips',
+      });
+
+      // Officer tip review (police roles)
+      if (userRoles.includes('police officer') || userRoles.includes('patrol officer') ||
+          userRoles.includes('chief') || userRoles.includes('captain') || userRoles.includes('sergeant') ||
+          userRoles.includes('administrator')) {
+        availableModules.push({
+          id: 'tips_officer',
+          title: 'Tip review (Officer)',
+          icon: '📝',
+          description: 'Initial review of submitted tips',
+          link: '/tips?review=officer',
+        });
+        availableModules.push({
+          id: 'reward_lookup',
+          title: 'Reward Lookup',
+          icon: '🔑',
+          description: 'Look up reward by National ID and code, process payment',
+          link: '/reward-lookup',
+        });
+      }
+
+      // Detective tip review
+      if (userRoles.includes('detective') || userRoles.includes('administrator')) {
+        availableModules.push({
+          id: 'tips_detective',
+          title: 'Tip review (Detective)',
+          icon: '✅',
+          description: 'Approve or reject tips and generate reward codes',
+          link: '/tips?review=detective',
+        });
+      }
 
       if (userRoles.includes('detective') || userRoles.includes('sergeant')) {
         availableModules.push({

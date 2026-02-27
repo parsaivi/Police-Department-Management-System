@@ -55,6 +55,9 @@ const Navigation = () => {
                 <Link to="/suspects" className="hover:text-blue-200 transition">
                   Suspects
                 </Link>
+                <Link to="/tips" className="hover:text-blue-200 transition">
+                  Tips
+                </Link>
                 <Link to="/most-wanted" className="hover:text-blue-200 transition">
                   Most Wanted
                 </Link>

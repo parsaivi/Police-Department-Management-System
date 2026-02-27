@@ -150,12 +150,24 @@ class RewardCodeViewSet(viewsets.ReadOnlyModelViewSet):
         # Users see their own rewards
         return RewardCode.objects.filter(tip__submitted_by=user)
 
+    def _user_can_lookup_claim(self, user):
+        """Only police ranks may lookup or claim rewards."""
+        allowed_roles = [
+            "Police Officer", "Patrol Officer", "Chief", "Captain", "Sergeant", "Administrator"
+        ]
+        return any(user.has_role(role) for role in allowed_roles)
+
     @action(detail=False, methods=["post"])
     def lookup(self, request):
         """
         Look up reward info by national_id + code.
         All police ranks can use this to verify rewards.
         """
+        if not self._user_can_lookup_claim(request.user):
+            return Response(
+                {"error": "Only police personnel can lookup rewards."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = RewardLookupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -187,7 +199,12 @@ class RewardCodeViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["post"])
     def claim(self, request):
-        """Process reward claim in person."""
+        """Process reward claim in person. Only police personnel."""
+        if not self._user_can_lookup_claim(request.user):
+            return Response(
+                {"error": "Only police personnel can process reward claims."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = ClaimRewardSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         

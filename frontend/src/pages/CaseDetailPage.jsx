@@ -71,6 +71,7 @@ const CaseDetailPage = () => {
   const [chiefDecisions, setChiefDecisions] = useState({});
   const [trialsForCase, setTrialsForCase] = useState([]);
   const [showCreateTrial, setShowCreateTrial] = useState(false);
+  const [successMessage, setSuccessMessage] = useState(null);
   const [trialForm, setTrialForm] = useState({
     scheduled_date: '',
     judge_id: '',
@@ -146,10 +147,17 @@ const CaseDetailPage = () => {
   const handleApproveSuspects = async () => {
     try {
       setActionLoading(true);
+      setError(null);
+      setSuccessMessage(null);
       await casesService.approveSuspects(caseId);
       await fetchCase();
+      await fetchSuspects();
+      setSuccessMessage('Suspects authorized for pursuit. Status updated to Under Pursuit.');
+      setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to approve suspects');
+      const msg = err.response?.data?.error || err.response?.data?.detail || 'Failed to approve suspects';
+      setError(msg);
+      console.error('Approve suspects failed:', err.response?.data || err.message);
     } finally {
       setActionLoading(false);
     }
@@ -380,6 +388,12 @@ const CaseDetailPage = () => {
           </div>
         </div>
 
+        {successMessage && (
+          <div className="bg-green-100 border border-green-400 text-green-800 px-4 py-3 rounded-lg mb-6">
+            {successMessage}
+          </div>
+        )}
+
         {/* Action Buttons */}
         {caseData.status === 'pending_approval' && canApproveCase && (
           <div className="bg-yellow-50 border border-yellow-300 rounded-lg shadow p-6 mb-6">
@@ -559,7 +573,11 @@ const CaseDetailPage = () => {
                         )}
                       </div>
                       <span className={`inline-block px-2 py-1 rounded-full text-xs font-bold ${
-                        link.suspect_detail?.status === 'arrested' ? 'bg-gray-100 text-gray-800' : 'bg-red-100 text-red-800'
+                        link.suspect_detail?.status === 'arrested'
+                          ? 'bg-gray-100 text-gray-800'
+                          : link.suspect_detail?.status === 'under_pursuit'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-red-100 text-red-800'
                       }`}>
                         {link.suspect_detail?.status?.replace(/_/g, ' ').toUpperCase() || link.role?.replace(/_/g, ' ').toUpperCase()}
                       </span>

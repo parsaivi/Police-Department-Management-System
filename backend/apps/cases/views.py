@@ -213,7 +213,12 @@ class CaseViewSet(viewsets.ModelViewSet):
             )
         
         case = self.get_object()
-        
+        if not case.suspect_links.exists():
+            return Response(
+                {"error": "This case has no suspects to approve."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             case.approve_suspects_for_pursuit()
             self._log_transition(

@@ -212,13 +212,16 @@ class Case(TimeStampedModel):
 
     def approve_suspects_for_pursuit(self):
         """
-        Sergeant approved identified suspects → move them from IDENTIFIED to UNDER_PURSUIT.
+        Sergeant approved identified suspects → move them from IDENTIFIED (or UNDER_INVESTIGATION) to UNDER_PURSUIT.
         Called from approve_suspects view; case status stays SUSPECT_IDENTIFIED.
         """
         for link in self.suspect_links.select_related("suspect").all():
             suspect = link.suspect
             if suspect.status == SuspectStatus.IDENTIFIED:
                 suspect.authorize_pursuit()
+                suspect.save()
+            elif suspect.status == SuspectStatus.UNDER_INVESTIGATION:
+                suspect.mark_wanted()
                 suspect.save()
 
     @transition(

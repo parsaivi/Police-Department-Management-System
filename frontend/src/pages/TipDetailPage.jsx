@@ -45,6 +45,7 @@ const TipDetailPage = () => {
   const [actionError, setActionError] = useState(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [pendingAction, setPendingAction] = useState(null); // 'officer' | 'detective'
+  const [showRejectNotes, setShowRejectNotes] = useState(false);
 
   const userRoles = (user?.roles || user?.groups || []).map((r) => String(r).toLowerCase());
   const isOfficer = [
@@ -56,7 +57,7 @@ const TipDetailPage = () => {
     'administrator',
   ].some((r) => userRoles.includes(r));
   const isDetective = userRoles.includes('detective') || userRoles.includes('administrator');
-  const isPolice = isOfficer;
+  const isPolice = isOfficer || isDetective;
   const isSubmitter = tip?.submitted_by?.id === user?.id;
 
   const caseId = tip?.case != null ? (typeof tip.case === 'object' ? tip.case?.id : tip.case) : null;
@@ -66,9 +67,14 @@ const TipDetailPage = () => {
     isOfficer &&
     tip &&
     !isSubmitter &&
-    (tip.status === 'submitted' || tip.status === 'officer_review');
+    (tip.status === 'submitted' || tip.status === 'officer_review') &&
+    !tip.reviewed_by_officer;
+
   const canDetectiveReview =
-    isDetective && tip && tip.status === 'detective_review';
+    isDetective && 
+    tip && 
+    tip.status === 'detective_review' &&
+    !tip.reviewed_by_detective;
 
   useEffect(() => {
     fetchTip();
@@ -87,11 +93,11 @@ const TipDetailPage = () => {
     }
   };
 
-  const runAction = async (fn) => {
+  const runAction = async (actionFn) => {
     try {
       setActionLoading(true);
       setActionError(null);
-      await fn();
+      await actionFn();
       setPendingAction(null);
       setReviewNotes('');
       setShowRejectNotes(false);
@@ -103,14 +109,60 @@ const TipDetailPage = () => {
     }
   };
 
-  const handleOfficerApprove = () =>
-    runAction(() => rewardsService.officerReview(tip.id, { approved: true, notes: reviewNotes }));
-  const handleOfficerReject = () =>
-    runAction(() => rewardsService.officerReview(tip.id, { approved: false, notes: reviewNotes }));
-  const handleDetectiveApprove = () =>
-    runAction(() => rewardsService.detectiveReview(tip.id, { approved: true, notes: reviewNotes }));
-  const handleDetectiveReject = () =>
-    runAction(() => rewardsService.detectiveReview(tip.id, { approved: false, notes: reviewNotes }));
+  const handleOfficerApprove = () => {
+    if (!reviewNotes.trim() && showRejectNotes) {
+      setActionError('Please provide notes for rejection.');
+      return;
+    }
+    runAction(() => 
+      rewardsService.officerReview(tip.id, { 
+        approved: true, 
+        notes: reviewNotes || null 
+      })
+    );
+  };
+
+  const handleOfficerReject = () => {
+    if (!reviewNotes.trim()) {
+      setActionError('Please provide notes explaining the rejection.');
+      return;
+    }
+    runAction(() => 
+      rewardsService.officerReview(tip.id, { 
+        approved: false, 
+        notes: reviewNotes 
+      })
+    );
+  };
+
+  const handleDetectiveApprove = () => {
+    runAction(() => 
+      rewardsService.detectiveReview(tip.id, { 
+        approved: true, 
+        notes: reviewNotes || null 
+      })
+    );
+  };
+
+  const handleDetectiveReject = () => {
+    if (!reviewNotes.trim()) {
+      setActionError('Please provide notes explaining the rejection.');
+      return;
+    }
+    runAction(() => 
+      rewardsService.detectiveReview(tip.id, { 
+        approved: false, 
+        notes: reviewNotes 
+      })
+    );
+  };
+
+  const resetAction = () => {
+    setPendingAction(null);
+    setReviewNotes('');
+    setShowRejectNotes(false);
+    setActionError(null);
+  };
 
   if (loading) {
     return (
@@ -234,6 +286,9 @@ const TipDetailPage = () => {
               {tip.officer_notes && (
                 <p className="mt-2 text-gray-700 bg-gray-50 p-3 rounded">{tip.officer_notes}</p>
               )}
+              {tip.status === 'officer_rejected' && (
+                <p className="mt-2 text-red-600 font-semibold">This tip was rejected by officer</p>
+              )}
             </div>
           ) : (
             <p className="text-gray-500">Not yet reviewed by an officer.</p>
@@ -253,6 +308,9 @@ const TipDetailPage = () => {
               </p>
               {tip.detective_notes && (
                 <p className="mt-2 text-gray-700 bg-gray-50 p-3 rounded">{tip.detective_notes}</p>
+              )}
+              {tip.status === 'detective_rejected' && (
+                <p className="mt-2 text-red-600 font-semibold">This tip was rejected by detective</p>
               )}
             </div>
           ) : (
@@ -299,33 +357,58 @@ const TipDetailPage = () => {
               <p className="text-sm text-gray-600">Initial review: forward to detective or reject.</p>
               {pendingAction === 'officer' ? (
                 <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex gap-4 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowRejectNotes(false)}
+                      className={`px-4 py-2 rounded-lg font-semibold ${
+                        !showRejectNotes 
+                          ? 'bg-green-600 text-white' 
+                          : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowRejectNotes(true)}
+                      className={`px-4 py-2 rounded-lg font-semibold ${
+                        showRejectNotes 
+                          ? 'bg-red-600 text-white' 
+                          : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      Reject
+                    </button>
+                  </div>
+
                   <textarea
-                    placeholder="Notes (optional)"
+                    placeholder={showRejectNotes 
+                      ? "Please provide reason for rejection (required)..." 
+                      : "Notes (optional)"}
                     value={reviewNotes}
                     onChange={(e) => setReviewNotes(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     rows={3}
+                    required={showRejectNotes}
                   />
+                  
                   <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
                       disabled={actionLoading}
-                      onClick={handleOfficerApprove}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+                      onClick={showRejectNotes ? handleOfficerReject : handleOfficerApprove}
+                      className={`px-4 py-2 text-white rounded-lg font-semibold disabled:opacity-50 ${
+                        showRejectNotes 
+                          ? 'bg-red-600 hover:bg-red-700' 
+                          : 'bg-green-600 hover:bg-green-700'
+                      }`}
                     >
-                      {actionLoading ? 'Processing...' : 'Forward to Detective'}
+                      {actionLoading ? 'Processing...' : (showRejectNotes ? 'Reject Tip' : 'Forward to Detective')}
                     </button>
                     <button
                       type="button"
-                      disabled={actionLoading}
-                      onClick={handleOfficerReject}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50"
-                    >
-                      {actionLoading ? 'Processing...' : 'Reject'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setPendingAction(null); setReviewNotes(''); setActionError(null); }}
+                      onClick={resetAction}
                       className="px-4 py-2 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600"
                     >
                       Cancel
@@ -349,33 +432,58 @@ const TipDetailPage = () => {
               <p className="text-sm text-gray-600">Approve to generate reward code, or reject.</p>
               {pendingAction === 'detective' ? (
                 <div className="space-y-2 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex gap-4 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowRejectNotes(false)}
+                      className={`px-4 py-2 rounded-lg font-semibold ${
+                        !showRejectNotes 
+                          ? 'bg-green-600 text-white' 
+                          : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowRejectNotes(true)}
+                      className={`px-4 py-2 rounded-lg font-semibold ${
+                        showRejectNotes 
+                          ? 'bg-red-600 text-white' 
+                          : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      Reject
+                    </button>
+                  </div>
+
                   <textarea
-                    placeholder="Notes (optional)"
+                    placeholder={showRejectNotes 
+                      ? "Please provide reason for rejection (required)..." 
+                      : "Notes (optional)"}
                     value={reviewNotes}
                     onChange={(e) => setReviewNotes(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     rows={3}
+                    required={showRejectNotes}
                   />
+                  
                   <div className="flex gap-2 flex-wrap">
                     <button
                       type="button"
                       disabled={actionLoading}
-                      onClick={handleDetectiveApprove}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+                      onClick={showRejectNotes ? handleDetectiveReject : handleDetectiveApprove}
+                      className={`px-4 py-2 text-white rounded-lg font-semibold disabled:opacity-50 ${
+                        showRejectNotes 
+                          ? 'bg-red-600 hover:bg-red-700' 
+                          : 'bg-green-600 hover:bg-green-700'
+                      }`}
                     >
-                      {actionLoading ? 'Processing...' : 'Approve (generate reward code)'}
+                      {actionLoading ? 'Processing...' : (showRejectNotes ? 'Reject Tip' : 'Approve & Generate Reward')}
                     </button>
                     <button
                       type="button"
-                      disabled={actionLoading}
-                      onClick={handleDetectiveReject}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50"
-                    >
-                      {actionLoading ? 'Processing...' : 'Reject'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setPendingAction(null); setReviewNotes(''); setActionError(null); }}
+                      onClick={resetAction}
                       className="px-4 py-2 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600"
                     >
                       Cancel

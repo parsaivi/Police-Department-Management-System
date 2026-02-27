@@ -45,6 +45,10 @@ class CaseViewSet(viewsets.ModelViewSet):
         
         user_roles = user.get_roles()
         
+        # Judge, Captain, Chief: full access to all cases for overall report (گزارش‌گیری کلی)
+        if any(role in ["Judge", "Captain", "Chief"] for role in user_roles):
+            return Case.objects.all()
+        
         q = (
             models.Q(created_by=user) |
             models.Q(lead_detective=user) |

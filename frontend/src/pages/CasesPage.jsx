@@ -13,9 +13,12 @@ const getSeverityLabel = (severity) => {
   return labels[severity] || 'N/A';
 };
 
+const REPORT_ACCESS_ROLES = ['judge', 'captain', 'chief'];
+
 const CasesPage = () => {
   const { user } = useSelector((state) => state.auth);
   const userRoles = (user?.roles || user?.groups || []).map(r => r.toLowerCase());
+  const hasReportAccess = userRoles.some(r => REPORT_ACCESS_ROLES.includes(r));
   const ALLOWED_CREATE_ROLES = ['chief', 'captain', 'sergeant', 'detective', 'police officer', 'patrol officer', 'administrator'];
   const canCreateCase = user?.is_staff || userRoles.some(r => ALLOWED_CREATE_ROLES.includes(r));
   const [cases, setCases] = useState([]);
@@ -83,7 +86,14 @@ const CasesPage = () => {
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-4xl font-bold text-gray-900">Cases</h1>
-            <p className="text-gray-600 mt-2">Total: {cases.length} cases</p>
+            <p className="text-gray-600 mt-2">
+              Total: {cases.length} cases
+              {hasReportAccess && (
+                <span className="ml-2 inline-block px-2 py-0.5 rounded text-xs font-medium bg-cyan-100 text-cyan-800">
+                  Full report access – view all cases and details
+                </span>
+              )}
+            </p>
           </div>
           {canCreateCase && (
             <Link
@@ -153,7 +163,7 @@ const CasesPage = () => {
                       Severity
                     </th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
-                      Created Date
+                      Formation Date
                     </th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">
                       Action

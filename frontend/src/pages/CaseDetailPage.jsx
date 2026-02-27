@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import casesService from '../services/casesService';
 import suspectService from '../services/suspectService';
 import judiciaryService from '../services/judiciaryService';
+import evidenceService from '../services/evidenceService';
 
 const getSeverityLabel = (severity) => {
   const labels = {
@@ -78,6 +79,7 @@ const CaseDetailPage = () => {
     court_name: '',
     court_room: '',
   });
+  const [evidenceList, setEvidenceList] = useState([]);
 
   const fetchCase = async () => {
     try {
@@ -100,9 +102,23 @@ const CaseDetailPage = () => {
     }
   };
 
+  const fetchEvidence = async () => {
+    try {
+      const response = await evidenceService.getEvidence({ case: caseId });
+      const data = response.data;
+      setEvidenceList(data.results || data || []);
+    } catch (err) {
+      setEvidenceList([]);
+    }
+  };
+
   useEffect(() => {
     fetchCase();
     fetchSuspects();
+  }, [caseId]);
+
+  useEffect(() => {
+    if (caseId) fetchEvidence();
   }, [caseId]);
 
   const fetchTrialsForCase = async () => {
@@ -949,6 +965,128 @@ const CaseDetailPage = () => {
             <p className="text-gray-700 whitespace-pre-wrap">{caseData.summary}</p>
           </div>
         )}
+
+        {/* Evidence & Testimonies (شواهد و استشهادها) */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">Evidence & Testimonies</h2>
+          {evidenceList.length > 0 ? (
+            <div className="space-y-3">
+              {evidenceList.map((ev) => (
+                <div key={ev.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50 flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-gray-900">{ev.title}</p>
+                    <p className="text-sm text-gray-600 mt-0.5">{ev.description?.slice(0, 120)}{ev.description?.length > 120 ? '…' : ''}</p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        {ev.evidence_type?.replace(/_/g, ' ')}
+                      </span>
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                        ev.status === 'verified' ? 'bg-green-100 text-green-800' : ev.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {ev.status}
+                      </span>
+                      {ev.collection_date && (
+                        <span className="text-xs text-gray-500">
+                          {new Date(ev.collection_date).toLocaleString()}
+                        </span>
+                      )}
+                      {ev.collected_by && (
+                        <span className="text-xs text-gray-500">
+                          by {formatUserName(ev.collected_by)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <Link
+                    to={`/evidence/${ev.id}`}
+                    className="text-blue-600 hover:text-blue-700 font-semibold text-sm whitespace-nowrap ml-4"
+                  >
+                    View →
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500">No evidence or testimonies recorded for this case.</p>
+          )}
+        </div>
+
+        {/* Complainants (شاکی/شاکیان) */}
+        {caseData.origin_complaint?.complainants?.length > 0 && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Complainants</h2>
+            <div className="space-y-2">
+              {caseData.origin_complaint.complainants.map((comp, i) => (
+                <div key={comp.id || i} className="border border-gray-200 rounded-lg p-3 bg-gray-50 flex items-center justify-between">
+                  <p className="font-medium text-gray-900">{formatUserName(comp)}</p>
+                  {comp.username && <p className="text-sm text-gray-500">@{comp.username}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Criminals (مجرم) – convicted suspects */}
+        {suspects.filter((link) => link.suspect_detail?.status === 'convicted').length > 0 && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Criminals (Convicted)</h2>
+            <div className="space-y-2">
+              {suspects.filter((link) => link.suspect_detail?.status === 'convicted').map((link) => (
+                <div key={link.id} className="border border-red-200 rounded-lg p-3 bg-red-50">
+                  <p className="font-semibold text-gray-900">{link.suspect_detail?.full_name || `Suspect #${link.suspect}`}</p>
+                  {link.suspect_detail?.aliases && <p className="text-sm text-gray-600">Aliases: {link.suspect_detail.aliases}</p>}
+                  <span className="inline-block mt-1 px-2 py-0.5 rounded text-xs font-bold bg-red-200 text-red-900">Convicted</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* All individuals involved (نام و درجه تمام افراد دخیل) – report summary */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">All Individuals Involved</h2>
+          <div className="space-y-2">
+            {caseData.created_by && (
+              <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                <span className="font-medium text-gray-700">Created by</span>
+                <div className="text-right">
+                  <p className="text-gray-900 font-semibold">{formatUserName(caseData.created_by)}</p>
+                  <p className="text-xs text-gray-500">{caseData.created_by.roles?.join(', ') || '—'}</p>
+                </div>
+              </div>
+            )}
+            {caseData.approved_by && (
+              <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                <span className="font-medium text-gray-700">Approved by</span>
+                <div className="text-right">
+                  <p className="text-gray-900 font-semibold">{formatUserName(caseData.approved_by)}</p>
+                  <p className="text-xs text-gray-500">{caseData.approved_by.roles?.join(', ') || '—'}</p>
+                </div>
+              </div>
+            )}
+            {caseData.lead_detective && (
+              <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                <span className="font-medium text-gray-700">Lead detective</span>
+                <div className="text-right">
+                  <p className="text-gray-900 font-semibold">{formatUserName(caseData.lead_detective)}</p>
+                  <p className="text-xs text-gray-500">{caseData.lead_detective.roles?.join(', ') || '—'}</p>
+                </div>
+              </div>
+            )}
+            {caseData.officers?.length > 0 && caseData.officers.map((officer, i) => (
+              <div key={officer.id || i} className="flex items-center justify-between py-2 border-b border-gray-100">
+                <span className="font-medium text-gray-700">Officer</span>
+                <div className="text-right">
+                  <p className="text-gray-900 font-semibold">{formatUserName(officer)}</p>
+                  <p className="text-xs text-gray-500">{officer.roles?.join(', ') || '—'}</p>
+                </div>
+              </div>
+            ))}
+            {!caseData.created_by && !caseData.approved_by && !caseData.lead_detective && (!caseData.officers || caseData.officers.length === 0) && (
+              <p className="text-gray-500">No individuals recorded.</p>
+            )}
+          </div>
+        </div>
 
         {/* Info Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

@@ -595,8 +595,8 @@ const CaseDetailPage = () => {
           </div>
         )}
 
-        {/* Sergeant: Approve (suspects → under pursuit) or Reject (case → investigation) */}
-        {caseData.status === 'suspect_identified' && isSergeant && (
+        {/* Sergeant: Approve (suspects → under pursuit) or Reject – only when some suspects are still identified */}
+        {caseData.status === 'suspect_identified' && isSergeant && suspects.some((link) => link.suspect_detail?.status === 'identified') && (
           <div className="bg-orange-50 border border-orange-300 rounded-lg shadow p-6 mb-6">
             <h2 className="text-lg font-semibold text-orange-800 mb-3">Approve or Reject Suspects</h2>
             <p className="text-orange-700 mb-4">Review the evidence and suspects. Approve to put them under pursuit (then arrest from Suspects page); reject to return the case to investigation.</p>

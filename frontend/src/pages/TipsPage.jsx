@@ -127,12 +127,23 @@ const TipsPage = () => {
             <h1 className="text-4xl font-bold text-gray-900">Tips &amp; Rewards</h1>
             <p className="text-gray-600 mt-2">Submit or review information about cases and suspects.</p>
           </div>
-          <Link
-            to="/tips/new"
-            className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition"
-          >
-            Submit New Tip
-          </Link>
+<div className="flex gap-3">
+  <Link
+    to="/tips/new"
+    className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition"
+  >
+    Submit New Tip
+  </Link>
+
+  {isOfficer && (
+    <Link
+      to="/reward-lookup"
+      className="bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition"
+    >
+      Check Reward Code
+    </Link>
+  )}
+</div>
         </div>
 
         {error && (

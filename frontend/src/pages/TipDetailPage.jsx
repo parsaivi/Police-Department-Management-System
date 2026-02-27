@@ -337,14 +337,6 @@ const TipDetailPage = () => {
                 Bring this code and your National ID to the police department to receive the reward.
               </p>
             )}
-            {isPolice && (
-              <Link
-                to="/reward-lookup"
-                className="inline-block mt-3 text-blue-600 hover:text-blue-700 font-semibold"
-              >
-                Open Reward Lookup to process payment →
-              </Link>
-            )}
           </div>
         )}
 

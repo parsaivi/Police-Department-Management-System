@@ -14,7 +14,7 @@ class BailStatus(models.TextChoices):
 
 class Bail(TimeStampedModel):
     """
-    Bail (وثیقه) assigned by a sergeant to a suspect for release from detention.
+    Bail assigned by a sergeant to a suspect for release from detention.
     Eligible: ARRESTED suspects with crime level 2 or 3; CONVICTED (level 3) with sergeant approval.
     """
     suspect = models.ForeignKey(

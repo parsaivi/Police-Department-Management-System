@@ -54,7 +54,7 @@ const BailPage = () => {
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">وثیقه (Bail)</h1>
+          <h1 className="text-4xl font-bold text-gray-900">Bail</h1>
           <p className="text-gray-600 mt-2">List of bails for release from detention. Pay to release the suspect.</p>
         </div>
 
@@ -101,7 +101,7 @@ const BailPage = () => {
                     onClick={() => handlePayBail(bail.id)}
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-4 rounded-lg transition"
                   >
-                    Pay Bail (پرداخت وثیقه)
+                    Pay Bail
                   </button>
                 </div>
               </div>

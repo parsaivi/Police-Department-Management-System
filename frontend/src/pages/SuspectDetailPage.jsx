@@ -236,7 +236,7 @@ const SuspectDetailPage = () => {
         {/* Create Bail (Sergeant only) */}
         {isSergeant && (suspect.status === 'arrested' || suspect.status === 'convicted') && (
           <div className="bg-white rounded-lg shadow p-6 mt-6 border-2 border-blue-200">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">ثبت وثیقه (Create Bail)</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Create Bail</h2>
             <form onSubmit={handleCreateBail} className="flex flex-wrap items-end gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Amount (Rials)</label>

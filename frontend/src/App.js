@@ -29,6 +29,7 @@ import TrialsListPage from './pages/TrialsListPage';
 import TrialDetailPage from './pages/TrialDetailPage';
 import TipsPage from './pages/TipsPage';
 import TipSubmitPage from './pages/TipSubmitPage';
+import TipDetailPage from './pages/TipDetailPage';
 import RewardLookupPage from './pages/RewardLookupPage';
 
 function App() {
@@ -187,6 +188,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <TipSubmitPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/tips/:tipId"
+              element={
+                <PrivateRoute>
+                  <TipDetailPage />
                 </PrivateRoute>
               }
             />

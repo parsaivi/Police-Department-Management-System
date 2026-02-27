@@ -195,13 +195,18 @@ const TipsPage = () => {
                         <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
                         <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Reward Code</th>
                         <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Date</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {myTips.map((tip) => (
                         <tr key={tip.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm font-semibold text-blue-600">#{tip.id}</td>
-                          <td className="px-6 py-4 text-sm text-gray-700">{tip.title}</td>
+                          <td className="px-6 py-4 text-sm font-semibold">
+                            <Link to={`/tips/${tip.id}`} className="text-blue-600 hover:text-blue-700">#{tip.id}</Link>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            <Link to={`/tips/${tip.id}`} className="hover:underline">{tip.title}</Link>
+                          </td>
                           <td className="px-6 py-4">
                             <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${tipStatusColor(tip.status)}`}>
                               {tipStatusLabel(tip.status)}
@@ -221,6 +226,11 @@ const TipsPage = () => {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
                             {tip.created_at ? new Date(tip.created_at).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <Link to={`/tips/${tip.id}`} className="text-blue-600 hover:text-blue-700 font-semibold">
+                              View details
+                            </Link>
                           </td>
                         </tr>
                       ))}
@@ -250,8 +260,12 @@ const TipsPage = () => {
                     <tbody className="divide-y">
                       {officerReviewTips.map((tip) => (
                         <tr key={tip.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm font-semibold">#{tip.id}</td>
-                          <td className="px-6 py-4 text-sm text-gray-700">{tip.title}</td>
+                          <td className="px-6 py-4 text-sm font-semibold">
+                            <Link to={`/tips/${tip.id}`} className="text-blue-600 hover:text-blue-700">#{tip.id}</Link>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            <Link to={`/tips/${tip.id}`} className="hover:underline">{tip.title}</Link>
+                          </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {tip.case && `Case #${tip.case}`}
                             {tip.case && tip.suspect && ' · '}
@@ -299,13 +313,18 @@ const TipsPage = () => {
                                 {actionError && <p className="text-red-600 text-xs">{actionError}</p>}
                               </div>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => openReviewModal(tip)}
-                                className="text-blue-600 hover:text-blue-700 font-semibold"
-                              >
-                                Review
-                              </button>
+                              <span className="flex gap-2">
+                                <Link to={`/tips/${tip.id}`} className="text-blue-600 hover:text-blue-700 font-semibold">
+                                  View
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => openReviewModal(tip)}
+                                  className="text-green-600 hover:text-green-700 font-semibold"
+                                >
+                                  Review
+                                </button>
+                              </span>
                             )}
                           </td>
                         </tr>
@@ -335,8 +354,12 @@ const TipsPage = () => {
                     <tbody className="divide-y">
                       {detectiveReviewTips.map((tip) => (
                         <tr key={tip.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm font-semibold">#{tip.id}</td>
-                          <td className="px-6 py-4 text-sm text-gray-700">{tip.title}</td>
+                          <td className="px-6 py-4 text-sm font-semibold">
+                            <Link to={`/tips/${tip.id}`} className="text-blue-600 hover:text-blue-700">#{tip.id}</Link>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-700">
+                            <Link to={`/tips/${tip.id}`} className="hover:underline">{tip.title}</Link>
+                          </td>
                           <td className="px-6 py-4 text-sm text-gray-600">
                             {tip.case && `Case #${tip.case}`}
                             {tip.case && tip.suspect && ' · '}
@@ -379,13 +402,18 @@ const TipsPage = () => {
                                 {actionError && <p className="text-red-600 text-xs">{actionError}</p>}
                               </div>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => openReviewModal(tip)}
-                                className="text-blue-600 hover:text-blue-700 font-semibold"
-                              >
-                                Review
-                              </button>
+                              <span className="flex gap-2">
+                                <Link to={`/tips/${tip.id}`} className="text-blue-600 hover:text-blue-700 font-semibold">
+                                  View
+                                </Link>
+                                <button
+                                  type="button"
+                                  onClick={() => openReviewModal(tip)}
+                                  className="text-green-600 hover:text-green-700 font-semibold"
+                                >
+                                  Review
+                                </button>
+                              </span>
                             )}
                           </td>
                         </tr>

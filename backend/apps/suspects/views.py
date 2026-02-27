@@ -141,7 +141,7 @@ class SuspectViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def arrest(self, request, pk=None):
-        """Mark suspect as arrested."""
+        """Mark suspect as arrested. If all suspects of a case are arrested, case moves to INTERROGATION."""
         user_roles = request.user.get_roles()
         if not request.user.is_staff and "Sergeant" not in user_roles:
             return Response(
@@ -154,6 +154,11 @@ class SuspectViewSet(viewsets.ModelViewSet):
         try:
             suspect.arrest()
             suspect.save()
+            # When all suspects of a case are arrested, case enters interrogation
+            for link in CaseSuspect.objects.filter(suspect=suspect).select_related("case"):
+                case = link.case
+                case.maybe_start_interrogation()
+                case.save()
             return Response(SuspectSerializer(suspect).data)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

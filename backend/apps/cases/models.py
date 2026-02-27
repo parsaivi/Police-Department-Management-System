@@ -204,16 +204,15 @@ class Case(TimeStampedModel):
     )
     def identify_suspect(self):
         """
-        Detective identifies primary suspects and submits case for sergeant approval.
-        Suspects remain IDENTIFIED until sergeant approves (then → UNDER_PURSUIT),
-        and arrest happens only when someone uses the arrest action.
+        Detective sends case to sergeant for approval → case becomes SUSPECT_IDENTIFIED.
+        Suspects stay IDENTIFIED until sergeant approves (then → UNDER_PURSUIT).
         """
         pass
 
     def approve_suspects_for_pursuit(self):
         """
-        Sergeant approved identified suspects → move them from IDENTIFIED (or UNDER_INVESTIGATION) to UNDER_PURSUIT.
-        Called from approve_suspects view; case status stays SUSPECT_IDENTIFIED.
+        Sergeant approved: move all case suspects from IDENTIFIED (or UNDER_INVESTIGATION) to UNDER_PURSUIT.
+        Case stays SUSPECT_IDENTIFIED.
         """
         for link in self.suspect_links.select_related("suspect").all():
             suspect = link.suspect
@@ -224,16 +223,24 @@ class Case(TimeStampedModel):
                 suspect.mark_wanted()
                 suspect.save()
 
+    def maybe_start_interrogation(self):
+        """
+        If all suspects of this case are arrested, transition case to INTERROGATION.
+        """
+        if self.status != CaseStatus.SUSPECT_IDENTIFIED:
+            return
+        for link in self.suspect_links.select_related("suspect").all():
+            if link.suspect.status != SuspectStatus.ARRESTED:
+                return
+        self.start_interrogation()
+
     @transition(
         field=status,
         source=CaseStatus.SUSPECT_IDENTIFIED,
         target=CaseStatus.INTERROGATION
     )
     def start_interrogation(self):
-        """
-        Start interrogation phase. Suspects remain under_pursuit until
-        someone records arrest via the arrest action (button).
-        """
+        """Start interrogation phase (e.g. when all suspects are arrested)."""
         pass
 
     @transition(
@@ -242,8 +249,7 @@ class Case(TimeStampedModel):
         target=CaseStatus.INVESTIGATION
     )
     def reject_suspects(self):
-        """Sergeant rejects identified suspects, case returns to investigation.
-        Suspects remain under pursuit — detective can re-investigate."""
+        """Sergeant rejects suspects; case returns to investigation."""
         pass
 
     @transition(

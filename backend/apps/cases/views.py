@@ -56,7 +56,7 @@ class CaseViewSet(viewsets.ModelViewSet):
         if any(role in self.APPROVAL_ROLES for role in user_roles):
             q |= models.Q(status=CaseStatus.PENDING_APPROVAL)
         
-        # Sergeant can see suspect_identified (approve/reject) and interrogation (score suspects)
+        # Sergeant can see suspect_identified (approve/reject) and interrogation
         if "Sergeant" in user_roles:
             q |= models.Q(status=CaseStatus.SUSPECT_IDENTIFIED)
             q |= models.Q(status=CaseStatus.INTERROGATION)
@@ -74,10 +74,11 @@ class CaseViewSet(viewsets.ModelViewSet):
         if "Judge" in user_roles:
             q |= models.Q(status=CaseStatus.TRIAL)
 
-        # Detectives can see created cases, their investigation cases, and their interrogation cases (to score and submit to captain)
+        # Detectives can see created, investigation, suspect_identified (their case), interrogation
         if "Detective" in user_roles:
             q |= models.Q(status=CaseStatus.CREATED)
             q |= (models.Q(status=CaseStatus.INVESTIGATION) & models.Q(lead_detective=user))
+            q |= (models.Q(status=CaseStatus.SUSPECT_IDENTIFIED) & models.Q(lead_detective=user))
             q |= (models.Q(status=CaseStatus.INTERROGATION) & models.Q(lead_detective=user))
         
         return Case.objects.filter(q).distinct()
@@ -204,7 +205,7 @@ class CaseViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def approve_suspects(self, request, pk=None):
-        """Sergeant approves identified suspects → they move from identified to under pursuit."""
+        """Sergeant approves suspects → case becomes SUSPECT_IDENTIFIED, suspects become UNDER_PURSUIT."""
         user_roles = request.user.get_roles()
         if not request.user.is_staff and "Sergeant" not in user_roles:
             return Response(

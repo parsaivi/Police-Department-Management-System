@@ -198,8 +198,10 @@ const CaseDetailPage = () => {
   const handleIdentifySuspects = async () => {
     try {
       setActionLoading(true);
+      setError(null);
       await casesService.identifySuspects(caseId);
       await fetchCase();
+      await fetchSuspects();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to submit suspects to sergeant');
     } finally {
@@ -210,10 +212,12 @@ const CaseDetailPage = () => {
   const handleRejectSuspects = async () => {
     try {
       setActionLoading(true);
+      setError(null);
       await casesService.rejectSuspects(caseId, { notes: rejectNotes });
       setShowRejectForm(false);
       setRejectNotes('');
       await fetchCase();
+      await fetchSuspects();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to reject suspects');
     } finally {
@@ -554,7 +558,7 @@ const CaseDetailPage = () => {
           </div>
         )}
 
-        {/* Suspects display for sergeant on suspect_identified cases */}
+        {/* Suspects list when case is suspect_identified (sent to sergeant; sergeant can approve/reject) */}
         {caseData.status === 'suspect_identified' && (
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Identified Suspects</h2>
@@ -586,15 +590,16 @@ const CaseDetailPage = () => {
                 ))}
               </div>
             ) : (
-              <p className="text-gray-500">No suspects identified.</p>
+              <p className="text-gray-500">No suspects.</p>
             )}
           </div>
         )}
 
+        {/* Sergeant: Approve (suspects → under pursuit) or Reject (case → investigation) */}
         {caseData.status === 'suspect_identified' && isSergeant && (
           <div className="bg-orange-50 border border-orange-300 rounded-lg shadow p-6 mb-6">
-            <h2 className="text-lg font-semibold text-orange-800 mb-3">Suspects Identified – Awaiting Sergeant Approval</h2>
-            <p className="text-orange-700 mb-4">Review the evidence and suspects, then approve or reject.</p>
+            <h2 className="text-lg font-semibold text-orange-800 mb-3">Approve or Reject Suspects</h2>
+            <p className="text-orange-700 mb-4">Review the evidence and suspects. Approve to put them under pursuit (then arrest from Suspects page); reject to return the case to investigation.</p>
             <div className="flex items-center gap-4">
               <button
                 onClick={handleApproveSuspects}
